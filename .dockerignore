@@ -1,0 +1,73 @@
+# Build context ignore for root-context docker builds (docker/Dockerfile,
+# docker/Dockerfile.webapp, docker/Dockerfile.pocketbase). BuildKit only honors
+# a .dockerignore next to the build context root (or <dockerfile>.dockerignore),
+# not docker/.dockerignore — so this file is what actually trims the CI context.
+
+# Dependencies
+node_modules
+**/node_modules
+.pnp
+.pnp.js
+
+# Yarn (keep releases/plugins; drop cache + transient state)
+.yarn/cache
+.yarn/install-state.gz
+.pnp.*
+
+# Build output
+.next
+**/.next
+out
+**/out
+dist
+**/dist
+build
+**/build
+*.tsbuildinfo
+
+# Tests
+coverage
+**/coverage
+**/__tests__
+**/src/test
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# PocketBase runtime state + host-downloaded binary (images download their own)
+**/pb_data
+pocketbase/pocketbase
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# VCS + tooling
+.git
+.gitignore
+.gitattributes
+.github
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Docs (not needed at build time)
+docs
+**/README.md
+
+# Kubernetes manifests (not part of any image build)
+k8s
+
+# Misc
+.DS_Store
+*.pem
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

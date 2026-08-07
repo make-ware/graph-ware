@@ -1,0 +1,12 @@
+{
+  "id": "xef7932rjp71zqtsglhly5ap",
+  "uid": "testDataElement",
+  "name": "test",
+  "label": "Test Element Data",
+  "namespace": "test",
+  "elements": [],
+  "childGraphs": [
+    "BatterySystem",
+    "EngineSystem"
+  ]
+}

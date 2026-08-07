@@ -1,0 +1,53 @@
+# Standalone PocketBase image, for running the webapp and PocketBase as separate
+# containers. PocketBase is a single static Go binary, so a plain alpine base is enough —
+# no Node runtime needed (unlike the monolithic docker/Dockerfile).
+# Build context = repo root:  docker build -f docker/Dockerfile.pocketbase -t graph-ware-pocketbase:local .
+
+# Fetch the PocketBase binary (mirrors the deps stage of docker/Dockerfile).
+FROM alpine:3.20 AS fetch
+RUN apk add --no-cache curl unzip
+# Fallback only — CI passes --build-arg POCKETBASE_VERSION from .env.example.
+ARG POCKETBASE_VERSION=0.39.9
+ARG POCKETBASE_ARCH=amd64
+RUN curl -L "https://github.com/pocketbase/pocketbase/releases/download/v${POCKETBASE_VERSION}/pocketbase_${POCKETBASE_VERSION}_linux_${POCKETBASE_ARCH}.zip" \
+      -o /tmp/pocketbase.zip && \
+    unzip /tmp/pocketbase.zip -d /pb && \
+    chmod +x /pb/pocketbase && \
+    rm /tmp/pocketbase.zip
+
+# Runtime image
+FROM alpine:3.20 AS runner
+RUN apk add --no-cache ca-certificates
+
+# Non-root user — uid/gid 1001, so a mounted /app/pb/pb_data volume must be
+# writable by that id.
+RUN addgroup -S -g 1001 pb && adduser -S -u 1001 -G pb pb
+
+WORKDIR /app/pb
+
+# Binary + hooks + migrations are code, baked into the image. Runtime state
+# (pb_data) lives on a mounted volume and is intentionally NOT copied.
+COPY --from=fetch /pb/pocketbase ./pocketbase
+COPY --chown=pb:pb pocketbase/pb_hooks ./pb_hooks
+COPY --chown=pb:pb pocketbase/pb_migrations ./pb_migrations
+
+# Launch wrapper — auto-provisions a superuser when POCKETBASE_ADMIN_EMAIL /
+# POCKETBASE_ADMIN_PASSWORD are set, else falls through to plain `serve`.
+COPY --chown=pb:pb docker/pb-entrypoint.sh ./pb-entrypoint.sh
+RUN chmod +x ./pb-entrypoint.sh
+
+# /data holds the SQLite DB + file uploads; mount a PersistentVolume here.
+RUN mkdir -p /data/pb_data && chown -R pb:pb /data
+
+USER pb
+EXPOSE 8090
+
+# Serve flags mirror docker/supervisord.conf. PocketBase auto-applies migrations
+# on boot. pb-entrypoint.sh upserts a superuser first when POCKETBASE_ADMIN_EMAIL /
+# POCKETBASE_ADMIN_PASSWORD are set; otherwise an empty volume starts with no
+# superuser and PocketBase prints a one-time setup URL to the logs.
+ENTRYPOINT ["./pb-entrypoint.sh", \
+  "--http=0.0.0.0:8090", \
+  "--dir=/data/pb_data", \
+  "--hooksDir=/app/pb/pb_hooks", \
+  "--migrationsDir=/app/pb/pb_migrations"]

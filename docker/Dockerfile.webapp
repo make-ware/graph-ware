@@ -1,0 +1,70 @@
+# Standalone Next.js image, for running the webapp and PocketBase as separate
+# containers. Unlike the monolithic docker/Dockerfile, this builds ONLY the webapp (no
+# PocketBase, no nginx, no supervisor) and uses Next.js standalone output for a
+# slim, self-contained server. There is no `shared` workspace — @project/shared
+# is a tsconfig path alias into webapp/src, so no shared build step is needed.
+# Build context = repo root:
+#   docker build -f docker/Dockerfile.webapp -t graph-ware-webapp:local --build-arg NEXT_PUBLIC_POCKETBASE_URL=/ .
+FROM node:20-alpine AS base
+
+# Install dependencies
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+RUN corepack enable && corepack prepare yarn@4.12.0 --activate
+
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY .yarn ./.yarn
+COPY webapp/package.json ./webapp/
+COPY pocketbase/package.json ./pocketbase/
+
+RUN yarn install --immutable
+
+# Build the Next.js app
+FROM base AS builder
+WORKDIR /app
+RUN corepack enable && corepack prepare yarn@4.12.0 --activate
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/.yarn ./.yarn
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY webapp ./webapp
+COPY pocketbase/package.json ./pocketbase/
+
+ENV NEXT_TELEMETRY_DISABLED=1
+# NEXT_STANDALONE switches next.config.ts to `output: 'standalone'`.
+ENV NEXT_STANDALONE=1
+
+# NEXT_PUBLIC_* values are inlined into the JS bundle at build time. The PocketBase
+# SDK appends "/api/..." to its base URL, so "/" makes browser requests resolve to
+# /api/... on the same origin — which assumes a proxy or router in front of both
+# containers forwards /api to PocketBase. Override at build time to point the
+# bundle at an external PocketBase instance instead.
+ARG NEXT_PUBLIC_POCKETBASE_URL=/
+ENV NEXT_PUBLIC_POCKETBASE_URL=${NEXT_PUBLIC_POCKETBASE_URL}
+
+RUN yarn workspace @project/webapp build
+
+# Production runner — standalone output, no Yarn/node_modules at runtime.
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 --ingroup nodejs nextjs
+
+# Next.js standalone bundles the traced server + deps but NOT .next/static or
+# public/ — those are copied separately. For a monorepo, the standalone root
+# mirrors the workspace layout, so the server entrypoint is webapp/server.js.
+COPY --from=builder --chown=nextjs:nodejs /app/webapp/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/webapp/.next/static ./webapp/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/webapp/public ./webapp/public
+
+USER nextjs
+EXPOSE 3000
+
+CMD ["node", "webapp/server.js"]

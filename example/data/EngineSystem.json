@@ -1,0 +1,78 @@
+{
+  "id": "k3fizt9o0zlnae3sunounvfg",
+  "uid": "EngineSystem",
+  "name": "control_system",
+  "label": "Control System",
+  "namespace": "test",
+  "elements": [
+    {
+      "id": "rom8fd4eslyfhtpzruze7cc8",
+      "name": "victron_cerbo",
+      "label": "Cerbo GX",
+      "attributes": [],
+      "ports": [
+        {
+          "name": "supply",
+          "direction": "input",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "voltage",
+              "value": "12",
+              "unit": "volts",
+              "kind": "power",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "voltage",
+                    "value": "10",
+                    "operator": "gte"
+                  },
+                  {
+                    "attribute": "voltage",
+                    "value": "15",
+                    "operator": "lte"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "current",
+              "value": "3",
+              "unit": "amps",
+              "kind": "power"
+            }
+          ]
+        },
+        {
+          "name": "hdmi",
+          "direction": "output",
+          "kind": "video/hdmi"
+        },
+        {
+          "name": "vcan_1",
+          "direction": "output",
+          "kind": "data/canbus"
+        },
+        {
+          "name": "vcan_2",
+          "direction": "output",
+          "kind": "data/canbus"
+        },
+        {
+          "name": "vbus_1",
+          "direction": "output",
+          "kind": "data/vbus"
+        },
+        {
+          "name": "vbus_2",
+          "direction": "output",
+          "kind": "data/vbus"
+        }
+      ]
+    }
+  ],
+  "childGraphs": []
+}

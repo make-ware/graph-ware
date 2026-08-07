@@ -1,0 +1,97 @@
+{
+  "id": "pbv6nb1nunro8gzxkizywfsn",
+  "uid": "BatterySystem",
+  "name": "battery_system",
+  "label": "Battery System",
+  "namespace": "test",
+  "elements": [
+    {
+      "id": "gyqagy3laffvrb5gn2snw4mg",
+      "name": "house_battery_1",
+      "label": "House Battery 1",
+      "attributes": [
+        {
+          "name": "voltage",
+          "value": "12",
+          "unit": "volts",
+          "kind": "power"
+        },
+        {
+          "name": "current",
+          "value": "150",
+          "unit": "amps",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "supply",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "abqfgtv036zx1v4dzmqvz16r",
+      "name": "house_battery_2",
+      "label": "House Battery 2",
+      "attributes": [
+        {
+          "name": "voltage",
+          "value": "12",
+          "unit": "volts",
+          "kind": "power"
+        },
+        {
+          "name": "current",
+          "value": "150",
+          "unit": "amps",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "supply",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "tny7v58aml2lap9h9f2mq9em",
+      "name": "house_fuse",
+      "label": "Fuse",
+      "attributes": [
+        {
+          "name": "voltage",
+          "value": "12",
+          "unit": "volts",
+          "kind": "power"
+        },
+        {
+          "name": "current",
+          "value": "150",
+          "unit": "amps",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "supply",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "power"
+        },
+        {
+          "name": "supply",
+          "direction": "input",
+          "relationship": "many",
+          "kind": "power"
+        }
+      ]
+    }
+  ],
+  "childGraphs": []
+}

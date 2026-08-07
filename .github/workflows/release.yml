@@ -1,0 +1,208 @@
+name: Release
+
+# release-please tracks conventional commits on main and opens/maintains a
+# release PR. Merging that PR creates a GitHub release + tag, which flips
+# `release_created` to true in this same run and triggers the image build/push.
+#
+# Compute optimization: each (image, arch) pair builds on a NATIVE runner in
+# parallel (amd64 on ubuntu-latest, arm64 on ubuntu-24.04-arm — no QEMU),
+# pushes by digest, and a final per-image merge job assembles one multi-arch
+# manifest. Layer caching is scoped per image+arch via the GitHub Actions cache.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing git tag to build & push multi-arch images for (e.g. v1.2.3)"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  release-please:
+    # On manual dispatch we're rebuilding an existing tag — there's no release
+    # to cut, so skip this job entirely.
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v5
+        with:
+          # release-please-config.json + .release-please-manifest.json (repo root)
+          # are auto-detected.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    name: build (${{ matrix.image.name }} · ${{ matrix.platform }})
+    needs: release-please
+    # Run when release-please cut a release, or on manual dispatch (where
+    # release-please is skipped). !cancelled() is required so a skipped
+    # release-please doesn't cascade-skip this job; the != 'failure' guard
+    # stops us building on a genuine release-please error.
+    if: |
+      !cancelled() && needs.release-please.result != 'failure' &&
+      (github.event_name == 'workflow_dispatch' ||
+       needs.release-please.outputs.release_created == 'true')
+    # Native runner per arch — far cheaper/faster than emulating arm64 on amd64.
+    runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - name: webapp
+            dockerfile: docker/Dockerfile.webapp
+          - name: pocketbase
+            dockerfile: docker/Dockerfile.pocketbase
+          - name: monolith
+            dockerfile: docker/Dockerfile
+        platform:
+          - linux/amd64
+          - linux/arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # On dispatch, build the requested tag; on release, the default ref
+          # (the merge commit that triggered the run) already points at the tag.
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || '' }}
+
+      - name: Prepare build env
+        run: |
+          # GHCR paths must be lowercase.
+          echo "IMAGE_BASE=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+          platform="${{ matrix.platform }}"
+          echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
+          # Maps linux/amd64 -> amd64, linux/arm64 -> arm64 for the PocketBase
+          # binary download (pocketbase + monolith images).
+          echo "POCKETBASE_ARCH=${platform##*/}" >> "$GITHUB_ENV"
+          # Single source of truth for the PocketBase version: .env.example.
+          grep -E '^\s*POCKETBASE_VERSION\s*=' .env.example | head -n1 | sed 's/^\s*//' >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_BASE }}/${{ matrix.image.name }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.image.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Both args are passed to every build; each Dockerfile consumes only the
+          # ones it declares (the other yields a harmless "unconsumed arg" warning).
+          build-args: |
+            POCKETBASE_ARCH=${{ env.POCKETBASE_ARCH }}
+            POCKETBASE_VERSION=${{ env.POCKETBASE_VERSION }}
+            NEXT_PUBLIC_POCKETBASE_URL=/
+          cache-from: type=gha,scope=${{ matrix.image.name }}-${{ env.PLATFORM_PAIR }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}-${{ env.PLATFORM_PAIR }}
+          outputs: type=image,name=${{ env.IMAGE_BASE }}/${{ matrix.image.name }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.image.name }}-${{ env.PLATFORM_PAIR }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: merge (${{ matrix.image }})
+    needs: [release-please, build]
+    # Mirror build's gate; also require build to have succeeded (digests must
+    # exist before we can assemble a manifest).
+    if: |
+      !cancelled() && needs.release-please.result != 'failure' &&
+      needs.build.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' ||
+       needs.release-please.outputs.release_created == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [webapp, pocketbase, monolith]
+    steps:
+      - name: Prepare env
+        run: echo "IMAGE_BASE=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-${{ matrix.image }}-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_BASE }}/${{ matrix.image }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
+            type=semver,pattern={{major}},value=${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
+            type=raw,value=latest
+
+      - name: Create multi-arch manifest and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.target."docker-metadata-action".tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.IMAGE_BASE }}/${{ matrix.image }}@sha256:%s ' *)
+
+      - name: Inspect
+        run: |
+          docker buildx imagetools inspect "${{ env.IMAGE_BASE }}/${{ matrix.image }}:${{ steps.meta.outputs.version }}"
