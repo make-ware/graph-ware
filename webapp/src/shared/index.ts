@@ -5,6 +5,8 @@
 // live under `@/mutators` and `@/services` (reachable as
 // `@project/shared/mutators` for the data layer).
 export * from '../schema';
+export * from '../lib/graph/primitives';
+export * from '../lib/graph/imports';
 export * from '../lib/loading-manager';
 export * from '../lib/errors';
 export * from '../lib/retry';

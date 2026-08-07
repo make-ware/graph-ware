@@ -6149,6 +6149,7 @@ __metadata:
     eslint: "npm:^9.39.5"
     pocketbase-zod-schema: "npm:^1.0.2"
     prettier: "npm:^3.9.6"
+    tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
