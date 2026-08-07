@@ -1,0 +1,111 @@
+/// <reference path="../pb_data/types.d.ts" />
+migrate((app) => {
+  const collection = new Collection({
+    "id": "pb_pjjdia303pr1eeu",
+    "name": "GraphImports",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != \"\" && (parent.owner = @request.auth.id || parent.visibility != \"private\")",
+    "viewRule": "@request.auth.id != \"\" && (parent.owner = @request.auth.id || parent.visibility != \"private\")",
+    "createRule": "@request.auth.id != \"\" && parent.owner = @request.auth.id && (child.owner = @request.auth.id || child.visibility != \"private\")",
+    "updateRule": "@request.auth.id != \"\" && parent.owner = @request.auth.id && (child.owner = @request.auth.id || child.visibility != \"private\")",
+    "deleteRule": "@request.auth.id != \"\" && parent.owner = @request.auth.id",
+    "fields": [
+    {
+      "name": "id",
+      "id": "text3208210256",
+      "type": "text",
+      "required": true,
+      "autogeneratePattern": "[a-z0-9]{15}",
+      "hidden": false,
+      "max": 15,
+      "min": 15,
+      "pattern": "^[a-z0-9]+$",
+      "presentable": false,
+      "primaryKey": true,
+      "system": true,
+    },
+    {
+      "name": "parent",
+      "id": "relationmfbg5xfepi",
+      "type": "relation",
+      "required": true,
+      "collectionId": "pb_59pj54cwk2o7xty",
+      "maxSelect": 1,
+      "minSelect": 0,
+      "cascadeDelete": true,
+    },
+    {
+      "name": "child",
+      "id": "relationfvo7z4m0yz",
+      "type": "relation",
+      "required": true,
+      "collectionId": "pb_59pj54cwk2o7xty",
+      "maxSelect": 1,
+      "minSelect": 0,
+      "cascadeDelete": true,
+    },
+    {
+      "name": "alias",
+      "id": "text0k8swkvlfh",
+      "type": "text",
+      "required": true,
+      "min": 1,
+      "max": 40,
+      "pattern": "^[a-z0-9_]{1,40}$",
+    },
+    {
+      "name": "label",
+      "id": "text0wuqbuulp5",
+      "type": "text",
+      "required": false,
+      "max": 200,
+    },
+    {
+      "name": "order",
+      "id": "number0tsgnmmpm7",
+      "type": "number",
+      "required": false,
+      "min": 0,
+      "onlyInt": true,
+    },
+    {
+      "name": "enabled",
+      "id": "bool9m5ogahn8z",
+      "type": "bool",
+      "required": true,
+    },
+    {
+      "name": "created",
+      "id": "autodate2990389176",
+      "type": "autodate",
+      "required": false,
+      "hidden": false,
+      "onCreate": true,
+      "onUpdate": false,
+      "presentable": false,
+      "system": true,
+    },
+    {
+      "name": "updated",
+      "id": "autodate3332085495",
+      "type": "autodate",
+      "required": false,
+      "hidden": false,
+      "onCreate": true,
+      "onUpdate": true,
+      "presentable": false,
+      "system": true,
+    },
+  ],
+    "indexes": [
+    "CREATE UNIQUE INDEX `idx_graph_imports_parent_alias` ON `GraphImports` (`parent`, `alias`)",
+    "CREATE INDEX `idx_graph_imports_child` ON `GraphImports` (`child`)",
+  ],
+  });
+
+  return app.save(collection);
+}, (app) => {
+  const collection = app.findCollectionByNameOrId("pb_pjjdia303pr1eeu") // GraphImports;
+  return app.delete(collection);
+});

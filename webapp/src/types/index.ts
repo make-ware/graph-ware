@@ -2,12 +2,25 @@
 
 import PocketBase from 'pocketbase';
 import type { RecordService } from 'pocketbase';
+import type { Graph } from '../schema/graph';
+import type { GraphEdgeOverride } from '../schema/graph-edge-override';
+import type { GraphImport } from '../schema/graph-import';
+import type { GraphNode } from '../schema/graph-node';
+import type { PortKind } from '../schema/port-kind';
 import type { User } from '../schema/user';
 
-// Typed PocketBase interface
+// Typed PocketBase interface.
+//
+// Stricter than the one in `src/lib/types.ts`: only the capitalized collection
+// names, which is what the data layer uses. Register every new collection in
+// both files.
 export interface TypedPocketBase extends PocketBase {
   collection(idOrName: 'Users'): RecordService<User>;
-  // Add more collections as needed
+  collection(idOrName: 'Graphs'): RecordService<Graph>;
+  collection(idOrName: 'GraphNodes'): RecordService<GraphNode>;
+  collection(idOrName: 'GraphImports'): RecordService<GraphImport>;
+  collection(idOrName: 'GraphEdgeOverrides'): RecordService<GraphEdgeOverride>;
+  collection(idOrName: 'PortKinds'): RecordService<PortKind>;
 }
 
 // PocketBase response types

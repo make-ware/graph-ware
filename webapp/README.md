@@ -369,11 +369,7 @@ export type Post = PostInput & {
 ```typescript
 // webapp/src/mutators/post.ts
 import { RecordService } from 'pocketbase';
-import {
-  type Post,
-  type PostInput,
-  PostInputSchema,
-} from '@project/shared';
+import { type Post, type PostInput, PostInputSchema } from '@project/shared';
 import type { TypedPocketBase } from '@/lib/types';
 import { BaseMutator } from './base';
 

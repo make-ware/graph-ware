@@ -1,0 +1,118 @@
+/// <reference path="../pb_data/types.d.ts" />
+migrate((app) => {
+  const collection = new Collection({
+    "id": "pb_m4jsdtbz0krc6t3",
+    "name": "GraphEdgeOverrides",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != \"\" && (graph.owner = @request.auth.id || graph.visibility != \"private\")",
+    "viewRule": "@request.auth.id != \"\" && (graph.owner = @request.auth.id || graph.visibility != \"private\")",
+    "createRule": "@request.auth.id != \"\" && graph.owner = @request.auth.id",
+    "updateRule": "@request.auth.id != \"\" && graph.owner = @request.auth.id",
+    "deleteRule": "@request.auth.id != \"\" && graph.owner = @request.auth.id",
+    "fields": [
+    {
+      "name": "id",
+      "id": "text3208210256",
+      "type": "text",
+      "required": true,
+      "autogeneratePattern": "[a-z0-9]{15}",
+      "hidden": false,
+      "max": 15,
+      "min": 15,
+      "pattern": "^[a-z0-9]+$",
+      "presentable": false,
+      "primaryKey": true,
+      "system": true,
+    },
+    {
+      "name": "graph",
+      "id": "relationw703uaeedt",
+      "type": "relation",
+      "required": true,
+      "collectionId": "pb_59pj54cwk2o7xty",
+      "maxSelect": 1,
+      "minSelect": 0,
+      "cascadeDelete": true,
+    },
+    {
+      "name": "mode",
+      "id": "selecto47fbwwj7d",
+      "type": "select",
+      "required": true,
+      "maxSelect": 1,
+      "values": ["pin", "suppress"],
+    },
+    {
+      "name": "sourcePath",
+      "id": "textod1xculsoo",
+      "type": "text",
+      "required": true,
+      "min": 1,
+      "max": 500,
+    },
+    {
+      "name": "sourcePort",
+      "id": "textlw3vherapp",
+      "type": "text",
+      "required": true,
+      "min": 1,
+      "max": 100,
+    },
+    {
+      "name": "targetPath",
+      "id": "textuaudjj7jnc",
+      "type": "text",
+      "required": true,
+      "min": 1,
+      "max": 500,
+    },
+    {
+      "name": "targetPort",
+      "id": "textd3bac5zpjb",
+      "type": "text",
+      "required": true,
+      "min": 1,
+      "max": 100,
+    },
+    {
+      "name": "reason",
+      "id": "text91y4j7yl5n",
+      "type": "text",
+      "required": false,
+      "max": 500,
+    },
+    {
+      "name": "created",
+      "id": "autodate2990389176",
+      "type": "autodate",
+      "required": false,
+      "hidden": false,
+      "onCreate": true,
+      "onUpdate": false,
+      "presentable": false,
+      "system": true,
+    },
+    {
+      "name": "updated",
+      "id": "autodate3332085495",
+      "type": "autodate",
+      "required": false,
+      "hidden": false,
+      "onCreate": true,
+      "onUpdate": true,
+      "presentable": false,
+      "system": true,
+    },
+  ],
+    "indexes": [
+    "CREATE INDEX `idx_graph_edge_overrides_graph` ON `GraphEdgeOverrides` (`graph`)",
+    "CREATE UNIQUE INDEX `idx_graph_edge_overrides_endpoints` ON `GraphEdgeOverrides` (`graph`, `sourcePath`, `sourcePort`, `targetPath`, `targetPort`)",
+  ],
+  });
+
+  return app.save(collection);
+}, (app) => {
+  const collection = app.findCollectionByNameOrId("pb_m4jsdtbz0krc6t3") // GraphEdgeOverrides;
+  return app.delete(collection);
+});

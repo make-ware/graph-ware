@@ -10,6 +10,14 @@ export class MockAuthStore {
   private listeners: Array<(token: string | null, model: User | null) => void> =
     [];
 
+  /**
+   * Mirrors `model`. The PocketBase SDK exposes both, and the data layer reads
+   * `record` while the older auth code still reads `model`.
+   */
+  get record(): User | null {
+    return this.model;
+  }
+
   onChange(callback: (token: string | null, model: User | null) => void) {
     this.listeners.push(callback);
     return () => {
@@ -45,6 +53,7 @@ export function createMockCollection() {
     authWithPassword: vi.fn(),
     create: vi.fn(),
     getFullList: vi.fn(),
+    getList: vi.fn(),
     getFirstListItem: vi.fn(),
     getOne: vi.fn(),
     update: vi.fn(),
