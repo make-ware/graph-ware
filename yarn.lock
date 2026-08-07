@@ -230,6 +230,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@dagrejs/dagre@npm:^1.1.5":
+  version: 1.1.8
+  resolution: "@dagrejs/dagre@npm:1.1.8"
+  dependencies:
+    "@dagrejs/graphlib": "npm:2.2.4"
+  checksum: 10/648f60b8d6c05ec3367d1c7a4f2da32b7c26273e40234ce37bace606cd1e4f882ef7947452a0f0df4b34f1bbbc9f3cbae29f0f6af19fbffb8bc9f5e9b97fc3e8
+  languageName: node
+  linkType: hard
+
+"@dagrejs/graphlib@npm:2.2.4":
+  version: 2.2.4
+  resolution: "@dagrejs/graphlib@npm:2.2.4"
+  checksum: 10/1fc5393525a3d666284ca740867d082768bc87ff61f5f181eb5c1a73c1a6e328ad23581f7415c81df2614171b8a4b4a8e6a417eefd7f9fca74a4a625ec3aa848
+  languageName: node
+  linkType: hard
+
 "@date-fns/tz@npm:^1.4.1":
   version: 1.5.0
   resolution: "@date-fns/tz@npm:1.5.0"
@@ -1323,6 +1339,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@project/webapp@workspace:webapp"
   dependencies:
+    "@dagrejs/dagre": "npm:^1.1.5"
     "@hookform/resolvers": "npm:^5.5.7"
     "@radix-ui/react-accordion": "npm:^1.2.20"
     "@radix-ui/react-alert-dialog": "npm:^1.1.23"

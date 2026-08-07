@@ -142,6 +142,11 @@ The engine only ever loads the overrides of the root graph being rendered.
 `key` (unique), `label`, `color`, `description`, `compatibleWith: string[]`.
 Readable by everyone including signed-out visitors; writable only by superusers.
 
+`compatibleWith` is read symmetrically: `power/12v` listing `power` lets a
+`power` output reach a `power/12v` input *and* the other way round. One-way
+compatibility would mean declaring the same relationship twice to get the
+behaviour anyone would expect from it.
+
 The registry is **not a validation gate**. A port may name a kind with no row
 here — it still connects to ports of the same kind and simply renders with the
 neutral fallback colour. Its job is to stop the kind→colour map from being
@@ -181,7 +186,8 @@ needs to be numeric and falls back to string comparison otherwise.
 ```
 
 - `kind` is what makes two ports connectable: an output reaches only inputs of
-  the same kind (or one listed in that kind's `compatibleWith`).
+  the same kind, or of a kind related to it by `compatibleWith`. That relation
+  is **symmetric** — either kind listing the other is enough.
 - `relationship` on an **output** caps fan-out — `one` stops after a single
   edge, `many` connects to every match.
 - `relationship` on an **input** controls whether more than one output may claim

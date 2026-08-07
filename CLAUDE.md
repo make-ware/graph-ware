@@ -77,7 +77,7 @@ Data flows in layers, top to bottom:
 | Contexts | `webapp/src/contexts/*.tsx` | React state, optimistic updates, subscription lifecycle |
 | Components | `webapp/src/components/` | shadcn/ui primitives in `ui/`, feature components alongside |
 
-`webapp/src/lib/graph/resolver.ts` and `engine.ts` (Phase 2, not yet written) sit between mutators and components: the resolver loads an import tree, the engine turns it into flat nodes, edges, diagnostics and positions. The engine must stay pure — no DOM, no network — which is what makes it testable.
+`webapp/src/lib/graph/resolver.ts` and `engine.ts` sit between mutators and components: the resolver loads an import tree, the engine turns it into flat nodes, edges, diagnostics and positions. The engine must stay pure — no DOM, no network — which is what makes it testable.
 
 ### `@project/shared` is an alias, not a package
 
