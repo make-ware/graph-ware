@@ -1,6 +1,6 @@
 # Phase 2 — Graph Engine
 
-**Status: next.**
+**Status: done.**
 
 ## Goal
 
@@ -83,36 +83,58 @@ input and asserts identical output.
 
 ## Acceptance criteria
 
-- [ ] Resolving `testDataElement` yields three children, two of them the same
+- [x] Resolving `testDataElement` yields three children, two of them the same
       `BatterySystem` under different aliases, with distinct instance ids for
       every node.
-- [ ] `enabled: false` on an import omits that subtree and produces an
+- [x] `enabled: false` on an import omits that subtree and produces an
       `import-disabled` diagnostic.
-- [ ] A graph nested past `MAX_IMPORT_DEPTH` truncates with
+- [x] A graph nested past `MAX_IMPORT_DEPTH` truncates with
       `resolution-truncated` rather than looping.
-- [ ] A resolver run against a tree containing a cycle (constructed directly,
+- [x] A resolver run against a tree containing a cycle (constructed directly,
       bypassing the hook) terminates with a warning.
-- [ ] The Cerbo GX `supply` input connects only to sources with
+- [x] The Cerbo GX `supply` input connects only to sources with
       `10 <= voltage <= 15`, and its `isRequired` diagnostic clears once one is
       present.
-- [ ] Ordering operators against a non-numeric attribute fail the condition
+- [x] Ordering operators against a non-numeric attribute fail the condition
       rather than comparing strings.
-- [ ] `house_fuse` fans out to every compatible input (`many`) while a `one`
+- [x] `house_fuse` fans out to every compatible input (`many`) while a `one`
       output stops after its first edge.
-- [ ] Shuffling the input node order produces byte-identical engine output.
-- [ ] A `pin` satisfies an `isRequired` input; a `suppress` removes exactly one
+- [x] Shuffling the input node order produces byte-identical engine output.
+- [x] A `pin` satisfies an `isRequired` input; a `suppress` removes exactly one
       edge and does not reopen matching.
-- [ ] An override naming a nonexistent path yields `stale-override`, not a
+- [x] An override naming a nonexistent path yields `stale-override`, not a
       crash.
-- [ ] `yarn precommit` passes.
+- [x] `yarn precommit` passes.
 
 ## Open questions
 
 - **Where do resolved trees get cached?** A React context per viewer page is the
   obvious answer, but a shared module-level cache would survive navigation. Defer
   until Phase 3 shows the access pattern.
-- **Should `compatibleWith` be symmetric?** If `power/12v` lists `power`, does
-  `power` accept `power/12v`? Currently one-directional from the output's kind.
-  Nothing exercises it yet.
+- **Should `compatibleWith` be symmetric?** *Resolved: yes.* An output reaches
+  an input when either kind's row lists the other. One-way compatibility would
+  have meant declaring the same relationship twice to get the behaviour anyone
+  would expect from it. `docs/GRAPH_ENGINE.md` and `docs/DATA_MODEL.md` say so
+  now; the sample data still declares no `compatibleWith`, so the unit tests are
+  what exercise it.
 - **Layout for very wide graphs.** Dagre handles the sample data fine; a
   hundred-node tree may want ELK instead. Measure before switching.
+
+## Decisions taken while building
+
+Four points the contract left open, each now written into
+[GRAPH_ENGINE.md](../GRAPH_ENGINE.md):
+
+- **No self-edges.** An output never reaches an input on the same node
+  instance. `house_fuse` declares `supply` in both directions; a self-loop
+  there means nothing and would spend its budget.
+- **`portIndex` counts the node's full `ports` array**, so `house_fuse` yields
+  `supply-out-0` and `supply-in-1`. Phase 3 must derive handle ids the same way.
+- **`import-cycle`** joins the diagnostic table as a warning. The hook makes it
+  unreachable in practice; it exists so a malformed database prunes a branch
+  instead of hanging.
+- **A stored `position` applies only to root-graph nodes.** It lives on the
+  `GraphNodes` record, so an imported node reports the same coordinates under
+  every alias — honouring it below the root would stack `port_bank` and
+  `starboard_bank` exactly on top of each other. A per-instance position store
+  is Phase 4's problem.

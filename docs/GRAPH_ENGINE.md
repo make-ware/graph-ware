@@ -3,11 +3,11 @@
 The engine turns a resolved tree of graphs into everything the canvas needs:
 flat nodes, edges, diagnostics, and positions. None of it is persisted.
 
-**Status: specified, not yet built.** This document is the contract Phase 2
-implements — `webapp/src/lib/graph/resolver.ts` and
-`webapp/src/lib/graph/engine.ts`. The primitives it operates on
-(`webapp/src/lib/graph/primitives.ts`) and the addressing scheme
-(`webapp/src/lib/graph/imports.ts`) exist today.
+**Status: built** (Phase 2). This document is the contract, and
+`webapp/src/lib/graph/` implements it: `resolver.ts` loads the tree,
+`engine.ts` runs the pipeline, `filters.ts` evaluates filter groups and
+`layout.ts` wraps dagre. The primitives it operates on (`primitives.ts`) and
+the addressing scheme (`imports.ts`) came from Phase 1.
 
 The engine is pure with respect to the DOM and the network. It takes data and
 returns data, which is why it can be unit-tested directly with no browser and no
@@ -81,6 +81,7 @@ interface FlatNode {
   graphColorIndex: number;   // stable per-instance index for visual grouping
   attributes: Attribute[];
   ports: Port[];
+  position?: NodePosition;   // the stored manual override, root graph only
 }
 ```
 
@@ -95,6 +96,12 @@ Two things that must not be confused:
 
 `breadcrumb` uses the import's `label` when it has one and the child graph's
 `label` otherwise.
+
+`position` is carried through from the `GraphNodes` record, but **only for
+nodes on the root graph**. It is stored per record, so an imported node reports
+the same coordinates under every alias — honouring it below the root would
+stack `port_bank` and `starboard_bank` exactly on top of each other. Imported
+instances are laid out instead.
 
 ## 2. Filter
 
@@ -111,11 +118,16 @@ For every output port, find the input ports it connects to.
 
 **Compatibility.** An output reaches an input when:
 
-1. `output.kind === input.kind`, or `input.kind` is listed in the output kind's
-   `compatibleWith` in `PortKinds`; and
+1. `output.kind === input.kind`, or either kind's `compatibleWith` in
+   `PortKinds` lists the other — the relation is **symmetric**; and
 2. every filter on the input port's attributes passes against the **source
    node's** attributes; and
-3. neither side has exhausted its relationship budget.
+3. neither side has exhausted its relationship budget; and
+4. the two ports are not on the same node instance. `house_fuse` declares
+   `supply` in both directions, and a self-loop there carries no meaning.
+
+With no registry loaded, only identical kinds match — the registry is a
+presentation aid, so an unregistered kind still wires to its own kind.
 
 **Relationships.**
 
@@ -145,21 +157,34 @@ must always produce the same picture, and a global optimizer would not.
 
 ```ts
 interface FlatEdge {
-  id: string;                // "edge-{sourceInstanceId}-{sourcePort}-{targetInstanceId}-{targetPort}"
+  id: string;                // "edge-{sourceInstanceId}-{sourcePortName}-{targetInstanceId}-{targetPortName}"
   sourceInstanceId: string;
   sourcePortName: string;    // "{portName}-out-{portIndex}" — matches XYFlow handle ids
   targetInstanceId: string;
   targetPortName: string;    // "{portName}-in-{portIndex}"
-  kind: string;
+  kind: string;              // the output port's kind
   origin: 'derived' | 'pinned';
 }
 ```
+
+`portIndex` is the port's index in the node's **full `ports` array**, so
+`house_fuse` yields `supply-out-0` and `supply-in-1`. Anything rendering
+handles must derive them the same way or the edges will not line up.
 
 ## 4. Apply overrides
 
 Load `GraphEdgeOverrides` for the **root** graph only — overrides do not
 inherit, because the instance paths under a different parent are different
 paths.
+
+`sourcePath` / `targetPath` are matched against `FlatNode.instanceId` — the
+whole `buildInstanceId(instancePath, nodeId)` string. `sourcePort` /
+`targetPort` are **plain port names**, resolved among the source node's outputs
+and the target node's inputs respectively; direction is what tells
+`house_fuse`'s two `supply` ports apart.
+
+Suppressions are applied before pins, each in a fixed endpoint order, so the
+result never depends on the order the records came back in.
 
 - `suppress` — drop a derived edge whose four endpoint fields match. Freeing the
   target input does **not** re-run matching; suppression removes an edge, it
@@ -197,7 +222,15 @@ Produced at minimum for:
 | `stale-override` | warning | an override matched no node or port |
 | `child-unreadable` | warning | an imported graph could not be loaded |
 | `import-disabled` | info | a subtree was skipped via `enabled: false` |
+| `import-cycle` | warning | a graph reappeared on its own ancestor chain |
 | `resolution-truncated` | warning | `MAX_IMPORT_DEPTH` or `MAX_RESOLVED_NODES` hit |
+
+`import-cycle` cannot normally happen — `pb_hooks/graph-imports.pb.js` refuses
+to write one. It exists because a malformed database should degrade to a
+warning and a pruned branch rather than an infinite loop.
+
+In a focused view, an override addressing a node outside the focus is out of
+frame rather than stale, and produces no diagnostic.
 
 `code` is what the UI keys off; `message` is for humans and may be reworded
 freely.
@@ -210,8 +243,12 @@ on the left, outputs on the right, matching the rank direction.
 A node with a stored `position` uses it and is excluded from the auto-layout
 pass; the rest lay out around it.
 
-Dagre is not yet a dependency — Phase 2 adds `@dagrejs/dagre`. `@xyflow/react` is
-already installed.
+Dagre reports node centres; XYFlow places nodes by their top-left corner, so
+`layout.ts` converts and rounds to whole pixels — which is also what lets the
+determinism tests compare positions exactly.
+
+`@dagrejs/dagre` is a `webapp` dependency (it ships its own types; the older
+`dagre` would need `@types/dagre`). `@xyflow/react` was already installed.
 
 ## Testing
 

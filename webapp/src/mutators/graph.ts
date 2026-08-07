@@ -55,6 +55,20 @@ export class GraphMutator extends BaseMutator<Graph, GraphInput> {
   }
 
   /**
+   * Several graphs by id in one request, for breadth-first tree resolution.
+   *
+   * Ids the caller asked for but that are missing from the result were filtered
+   * out by the read rules — the resolver reports those as `child-unreadable`
+   * rather than failing the whole render.
+   */
+  async listByIds(ids: readonly string[]): Promise<Graph[]> {
+    if (!ids.length) return [];
+
+    const filter = ids.map((id) => `id = "${id}"`).join(' || ');
+    return await this.getCollection().getFullList({ filter, sort: 'id' });
+  }
+
+  /**
    * How many graphs import this one. The editor calls this before offering to
    * delete: `child` cascades, so deleting a graph silently unhooks it from
    * every parent that was using it.
