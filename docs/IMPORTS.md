@@ -59,6 +59,33 @@ Everything derived is keyed by this: flat nodes, edges, diagnostics, layout
 positions, canvas selection, and the endpoints stored on `GraphEdgeOverrides`.
 See [DATA_MODEL.md § Instance identity](DATA_MODEL.md#instance-identity).
 
+### Renaming an alias
+
+Because the alias is a *segment of every instance path beneath it*, and
+`GraphEdgeOverrides` stores those paths verbatim as text, renaming an alias
+invalidates every override underneath it. Nothing in the database notices: the
+rows stay valid, they simply stop matching, and resurface as `stale-override`
+warnings the next time the graph is resolved.
+
+**The editor rewrites them in the same operation.** Renaming `port_bank` to
+`harbour_bank` rewrites the leading segment of `sourcePath` and `targetPath` on
+every override that named it, and the confirmation says how many will change
+before it happens. The alternative — refusing the rename while overrides exist
+— was rejected for the same reason `cascadeDelete: false` was rejected below:
+it turns a cosmetic edit into a dead end whose only way out is deleting work.
+
+Two properties keep the rewrite honest:
+
+- Matching is on the alias **plus the separator**, so renaming `port_bank`
+  leaves `port_bank_2` alone (`isUnderAlias` in `lib/graph/imports.ts`).
+- Only the leading segment is replaced, so `port_bank/cells/abc` becomes
+  `harbour_bank/cells/abc` and the node id survives.
+
+PocketBase has no multi-record transaction, so a rename that fails partway
+leaves some overrides rewritten and some not. That is why stale detection stays
+in the override panel rather than being treated as a problem the rename solved
+— it is the backstop for exactly this case.
+
 ## The rules
 
 Three things are refused.
