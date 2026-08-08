@@ -13,12 +13,8 @@ export class UserMutator extends BaseMutator<User, UserInput> {
   }
 
   protected async validateInput(input: UserInput): Promise<UserInput> {
-    // Validate the input using the schema
-    const validated = UserInputSchema.parse(input);
-    // Return without passwordConfirm for database operations (it's only for validation)
-    const { passwordConfirm, ...result } = validated;
-    // passwordConfirm is only used for validation, not stored in database
-    void passwordConfirm;
-    return result as UserInput;
+    // passwordConfirm is not a stored column, but PocketBase's auth collections
+    // require it on the create request and reject the record without it.
+    return UserInputSchema.parse(input);
   }
 }
