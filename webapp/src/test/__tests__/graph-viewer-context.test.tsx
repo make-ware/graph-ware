@@ -337,7 +337,9 @@ describe('GraphViewerProvider', () => {
   it('unsubscribes on unmount', async () => {
     const { unmount } = renderViewer();
     await waitFor(() => expect(captured?.nodeCount).toBe(7));
-    await waitFor(() => expect(harness.unsubscribes.length).toBe(2));
+    // GraphNodes, GraphImports and GraphEdgeOverrides — the third arrived with
+    // the editor, which needs the override panel to stay live.
+    await waitFor(() => expect(harness.unsubscribes.length).toBe(3));
 
     unmount();
 
