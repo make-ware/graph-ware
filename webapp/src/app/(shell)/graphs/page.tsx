@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Boxes, Network } from 'lucide-react';
+import { Boxes, Network, Pencil, Plus } from 'lucide-react';
 import type { Graph } from '@project/shared';
 import {
   GraphImportMutator,
@@ -58,9 +58,25 @@ function GraphCard({
               {graph.label}
             </Link>
           </CardTitle>
-          <Badge variant="outline" className="shrink-0 text-[10px]">
-            {graph.visibility}
-          </Badge>
+          <div className="flex shrink-0 items-center gap-1">
+            <Badge variant="outline" className="text-[10px]">
+              {graph.visibility}
+            </Badge>
+            {isOwner && (
+              <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                title={`Edit ${graph.label}`}
+              >
+                <Link href={`/graphs/${graph.id}/edit`}>
+                  <Pencil className="size-3.5" />
+                  <span className="sr-only">Edit {graph.label}</span>
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
 
         <CardDescription className="line-clamp-2">
@@ -194,8 +210,12 @@ function GraphsList() {
   if (!state.graphs.length) {
     return (
       <p className="text-sm text-muted-foreground">
-        No graphs yet. Run <code className="font-mono">yarn db:seed</code> to
-        load the sample system.
+        No graphs yet.{' '}
+        <Link href="/graphs/new" className="underline">
+          Create one
+        </Link>
+        , or run <code className="font-mono">yarn db:seed</code> to load the
+        sample system.
       </p>
     );
   }
@@ -254,11 +274,19 @@ export default function GraphsPage() {
   return (
     <ProtectedRoute>
       <div className="container mx-auto space-y-6 px-4 py-8">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Graphs</h1>
-          <p className="text-muted-foreground">
-            Your systems and everything published to the shared library.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight">Graphs</h1>
+            <p className="text-muted-foreground">
+              Your systems and everything published to the shared library.
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/graphs/new">
+              <Plus className="mr-1 size-4" />
+              New graph
+            </Link>
+          </Button>
         </div>
 
         <GraphsList />

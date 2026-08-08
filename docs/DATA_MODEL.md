@@ -101,9 +101,15 @@ goes unless a position is set.
 | `alias` | text | `^[a-z0-9_]{1,40}$` — **the instance key**, unique per parent |
 | `label` | text, optional | display override, e.g. "Port Battery Bank" |
 | `order` | number | display order |
-| `enabled` | bool | exclude a subtree from resolution without deleting the link |
+| `enabled` | bool, **not required** | exclude a subtree from resolution without deleting the link |
 
 Indexes: `UNIQUE (parent, alias)`, `(child)`.
+
+`enabled` is deliberately declared `BoolField().optional()`. A *required* bool in
+PocketBase means "must be true" — `false` fails validation as blank — so a
+required `enabled` could be switched on and never off, which is the one thing the
+field exists to do. Records still always carry a value: PocketBase stores `false`
+rather than null, and `GraphImportInputSchema` defaults it to `true`.
 
 ```
 list/view:  @request.auth.id != "" && (parent.owner = @request.auth.id || parent.visibility != "private")

@@ -1,15 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Background,
   Controls,
   type Edge,
   MiniMap,
   type Node,
+  type NodeChange,
   ReactFlow,
 } from '@xyflow/react';
-import type { GraphView } from '@project/shared';
+import type { FlatNode, GraphView, NodePosition } from '@project/shared';
 import {
   GRAPH_NODE_TYPE,
   type GraphNodeData,
@@ -29,6 +30,19 @@ interface GraphCanvasProps {
   colorFor: (kind: string) => string;
   selection: ViewerSelection | null;
   onSelect: (selection: ViewerSelection | null) => void;
+  /**
+   * Persist a dragged node's position. Omitted — the viewer's case — leaves the
+   * canvas read-only, exactly as it was before drag existed.
+   */
+  onNodeMoved?: (instanceId: string, position: NodePosition) => void;
+  /**
+   * Which nodes may be dragged. Only root-graph nodes qualify: `position` is
+   * stored on the `GraphNodes` record, so a node imported twice would report
+   * one position under two instance ids. The engine already declines to honour
+   * a position below the root for that reason — this mirrors it rather than
+   * offering a gesture whose result would be discarded.
+   */
+  canDragNode?: (node: FlatNode) => boolean;
 }
 
 /**
@@ -37,28 +51,67 @@ interface GraphCanvasProps {
  * Takes engine output as props rather than reading the viewer context, so it
  * can be rendered from a fixture with no PocketBase anywhere in the picture.
  *
- * Read-only by construction: no `onNodesChange`/`onEdgesChange` handlers are
- * passed, so XYFlow renders nodes as undraggable and edges as unreconnectable.
- * Phase 4 adds those; until then there is nothing to accidentally persist.
+ * Read-only unless `onNodeMoved` is supplied. XYFlow only drags a controlled
+ * node when an `onNodesChange` handler exists, so the editor's positions are
+ * held in a local overlay during the drag and released once the resolved view
+ * reports the same coordinates — without it the node snaps back to its old
+ * spot for as long as the write is in flight.
  */
 export function GraphCanvas({
   view,
   colorFor,
   selection,
   onSelect,
+  onNodeMoved,
+  canDragNode,
 }: GraphCanvasProps) {
+  const isEditable = Boolean(onNodeMoved);
+
+  // Where a node sits *during* a drag. XYFlow will not move a controlled node
+  // on its own, so without this it stays put under the cursor.
+  //
+  // Cleared at drag stop rather than reconciled against the resolved view: the
+  // editor applies the new position optimistically before it writes, so the
+  // view already agrees by the time this empties. Keeping entries past drag
+  // stop would also outlive "reset layout", pinning nodes to coordinates the
+  // record no longer has.
+  const [dragged, setDragged] = useState<Record<string, NodePosition>>({});
+
   const nodes = useMemo<Node<GraphNodeData>[]>(() => {
     const selectedId = selection?.type === 'node' ? selection.instanceId : null;
 
-    return toFlowNodes(view).map((node) => ({
-      ...node,
-      selected: node.id === selectedId,
-      draggable: false,
-      // `colorFor` rides along on the node data because XYFlow constructs node
-      // components itself and there is no prop channel into them.
-      data: { ...node.data, colorFor },
-    }));
-  }, [view, colorFor, selection]);
+    return toFlowNodes(view).map((node) => {
+      const pending = dragged[node.id];
+      return {
+        ...node,
+        position: pending ?? node.position,
+        selected: node.id === selectedId,
+        draggable: isEditable && (canDragNode?.(node.data.node) ?? true),
+        // `colorFor` rides along on the node data because XYFlow constructs node
+        // components itself and there is no prop channel into them.
+        data: { ...node.data, colorFor },
+      };
+    });
+  }, [view, colorFor, selection, dragged, isEditable, canDragNode]);
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange<Node<GraphNodeData>>[]) => {
+      const moves = changes.filter(
+        (change) => change.type === 'position' && change.position
+      );
+      if (!moves.length) return;
+
+      setDragged((current) => {
+        const next = { ...current };
+        for (const change of moves) {
+          if (change.type !== 'position' || !change.position) continue;
+          next[change.id] = change.position;
+        }
+        return next;
+      });
+    },
+    []
+  );
 
   const edges = useMemo<Edge[]>(() => {
     const selectedId = selection?.type === 'edge' ? selection.edgeId : null;
@@ -75,12 +128,28 @@ export function GraphCanvas({
       nodes={nodes}
       edges={edges}
       nodeTypes={NODE_TYPES}
-      nodesDraggable={false}
+      nodesDraggable={isEditable}
+      // There is no "connect" gesture in this app, in either mode. Wiring is
+      // derived from ports; dragging a handle would imply a stored edge.
       nodesConnectable={false}
       elementsSelectable
       fitView
       minZoom={0.1}
       proOptions={{ hideAttribution: true }}
+      onNodesChange={isEditable ? onNodesChange : undefined}
+      onNodeDragStop={(_, node) => {
+        const position = dragged[node.id] ?? node.position;
+        setDragged((current) => {
+          if (!(node.id in current)) return current;
+          const next = { ...current };
+          delete next[node.id];
+          return next;
+        });
+        onNodeMoved?.(node.id, {
+          x: Math.round(position.x),
+          y: Math.round(position.y),
+        });
+      }}
       onNodeClick={(_, node) => onSelect({ type: 'node', instanceId: node.id })}
       onEdgeClick={(_, edge) => onSelect({ type: 'edge', edgeId: edge.id })}
       onPaneClick={() => onSelect(null)}

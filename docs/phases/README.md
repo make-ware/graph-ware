@@ -7,9 +7,9 @@ own document, and states explicitly what it does *not* cover so scope stays put.
 |---|---|---|
 | 1 | [Data model](PHASE_1_DATA_MODEL.md) | **Done** |
 | 2 | [Graph engine](PHASE_2_GRAPH_ENGINE.md) | **Done** |
-| 3 | [Viewer](PHASE_3_VIEWER.md) | Next |
-| 4 | [Editor](PHASE_4_EDITOR.md) | Planned |
-| 5 | [Library and sharing](PHASE_5_LIBRARY_AND_SHARING.md) | Planned |
+| 3 | [Viewer](PHASE_3_VIEWER.md) | **Done** |
+| 4 | [Editor](PHASE_4_EDITOR.md) | **Done** |
+| 5 | [Library and sharing](PHASE_5_LIBRARY_AND_SHARING.md) | Next |
 | 6 | [Interop](PHASE_6_INTEROP.md) | Planned |
 
 ## Shape of a phase document

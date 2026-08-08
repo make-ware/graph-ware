@@ -85,6 +85,37 @@ export function nextAvailableAlias(
   return `${base}_${suffix}`;
 }
 
+/**
+ * Does this instance id sit underneath `alias` at the top level?
+ *
+ * `"port_bank/abc"` is under `port_bank`; `"abc"` (a root-graph node) and
+ * `"port_bank_2/abc"` are not. The separator check is what keeps the second
+ * case out — a bare `startsWith` would match every alias sharing a prefix.
+ */
+export function isUnderAlias(instanceId: string, alias: string): boolean {
+  return instanceId.startsWith(`${alias}${INSTANCE_PATH_SEPARATOR}`);
+}
+
+/**
+ * Re-point an instance id from one top-level alias to another.
+ *
+ * Renaming an import alias invalidates every `GraphEdgeOverride` beneath it,
+ * because the alias is stored verbatim inside `sourcePath` / `targetPath`.
+ * The editor rewrites those paths in the same operation rather than leaving
+ * them to decay into `stale-override` warnings — see docs/IMPORTS.md.
+ *
+ * Ids that are not under `from` are returned untouched, so this is safe to map
+ * over every override on the graph.
+ */
+export function rewriteAliasPrefix(
+  instanceId: string,
+  from: string,
+  to: string
+): string {
+  if (!isUnderAlias(instanceId, from)) return instanceId;
+  return `${to}${instanceId.slice(from.length)}`;
+}
+
 // ---------------------------------------------------------------------------
 // Graph traversal over import edges
 // ---------------------------------------------------------------------------

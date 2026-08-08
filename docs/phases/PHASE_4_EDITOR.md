@@ -1,6 +1,6 @@
 # Phase 4 — Editor
 
-**Status: planned.** Depends on Phase 3.
+**Status: done.** Depends on Phase 3.
 
 ## Goal
 
@@ -55,8 +55,8 @@ write lands twice — **dedupe by id** when adding to the context's node list.
 ## Files
 
 ```
-webapp/src/app/graphs/new/page.tsx
-webapp/src/app/graphs/[id]/edit/page.tsx
+webapp/src/app/(shell)/graphs/new/page.tsx
+webapp/src/app/(viewer)/graphs/[id]/edit/page.tsx
 webapp/src/components/graph/editor/graph-form.tsx
 webapp/src/components/graph/editor/node-editor-modal.tsx
 webapp/src/components/graph/editor/attribute-list-editor.tsx
@@ -68,10 +68,40 @@ webapp/src/components/graph/editor/delete-graph-dialog.tsx
 webapp/src/contexts/graph-editor-context.tsx
 ```
 
+The two route paths gained their group prefixes: this sketch predates Phase 3's
+`(shell)` / `(viewer)` split. `/graphs/new` is a plain form page and keeps the
+nav chrome; the editor is full-bleed and lives in `(viewer)`, next to the
+viewer, which also avoids defining `/graphs/[id]/…` from two groups at once.
+`next build` confirms both resolve.
+
+Built as planned, plus three files the sketch did not anticipate:
+
+```
+webapp/src/hooks/use-graph-editor.ts                     context accessor
+webapp/src/components/graph/editor/port-kind-combobox.tsx
+```
+
+`port-kind-combobox.tsx` came out of `port-list-editor.tsx` because the
+free-text-with-warning behaviour is the whole of the "kind typos" open question
+and wanted to be one testable thing rather than a branch inside a form row.
+
 Forms use `react-hook-form` + `@hookform/resolvers` against the `*InputSchema`
 zod schemas already exported from `webapp/src/schema/`, matching the existing
 auth forms. `parseAuthError` in `lib/errors.ts` normalizes PocketBase errors into
 field errors — reuse it rather than writing a second error mapper.
+
+Two deviations worth knowing:
+
+- **`graph-form.tsx` is typed on the schema's input, not its output.**
+  `visibility` carries a zod `.default()`, so `z.input<typeof GraphInputSchema>`
+  has it optional while `GraphInput` has it required. `useForm<Input, unknown,
+  GraphInput>` is what reconciles the two.
+- **The node editor is not built on `react-hook-form`.** Its state is two nested
+  arrays — ports, each with attributes, each with a filter group of conditions —
+  which `useFieldArray` addresses through generated path strings three levels
+  deep. A plain draft object validated with zod on submit is less machinery for
+  the same guarantee, and it let the sub-editors become controlled components
+  that a test can render from a fixture with no form context at all.
 
 ## Design notes
 
@@ -95,31 +125,109 @@ know what.
 path. Either rewrite them in the same operation or warn loudly — decide and
 document it.
 
+> Decided: **rewrite them**, behind a confirmation naming the count. Written up
+> in [IMPORTS.md § Renaming an alias](../IMPORTS.md#renaming-an-alias).
+
+**An override stores port *names*; an edge carries port *handles*.** This is the
+sharpest trap in the phase. `FlatEdge.sourcePortName` is an XYFlow handle id
+(`supply-out-0`), but `GraphEdgeOverrides.sourcePort` is a bare name (`supply`)
+that `applyOverrides` resolves with `findPort`. Building an override straight
+from a selected edge without converting stores a row that matches nothing and
+resurfaces later as a `stale-override` warning — it never errors at the point of
+the mistake. `portNameFromHandle` converts by **index**, not by splitting on
+`-`, because port names may themselves contain dashes.
+
+**Only root-graph nodes can be dragged.** `position` lives on the `GraphNodes`
+record while the canvas is keyed by instance id, so a node imported twice is one
+record under two ids. The engine already settled this by ignoring `position`
+below the root (`flattenGraph`); the editor mirrors it rather than offering a
+gesture whose result would be discarded. Per-instance layout needs a schema
+change and belongs with Phase 5.
+
 ## Acceptance criteria
 
-- [ ] A graph can be created, edited and deleted from the UI.
-- [ ] A node with attributes, ports, port attributes and a filter group can be
+All verified against a seeded database driven through a real browser.
+
+- [x] A graph can be created, edited and deleted from the UI.
+- [x] A node with attributes, ports, port attributes and a filter group can be
       created and round-trips exactly.
-- [ ] The import picker disables graphs that would create a cycle and shows why.
-- [ ] The same child can be imported twice; the second gets a distinct alias
+- [x] The import picker disables graphs that would create a cycle and shows why.
+- [x] The same child can be imported twice; the second gets a distinct alias
       automatically.
-- [ ] Deleting a graph with importers requires confirmation naming them.
-- [ ] Toggling `enabled` removes the subtree from the preview without deleting
-      the link.
-- [ ] Suppressing an edge removes it from the canvas; pinning one adds it and
+- [x] Deleting a graph with importers requires confirmation naming them.
+- [x] Toggling `enabled` removes the subtree from the preview without deleting
+      the link. **This did not work when the phase started** — see below.
+- [x] Suppressing an edge removes it from the canvas; pinning one adds it and
       clears the corresponding required-input error.
-- [ ] Dragging a node persists `position`; "reset layout" clears it and dagre
+- [x] Dragging a node persists `position`; "reset layout" clears it and dagre
       takes over again.
-- [ ] Two browser windows on the same graph converge via realtime with no
+- [x] Two browser windows on the same graph converge via realtime with no
       duplicated nodes.
-- [ ] `yarn precommit` passes.
+- [x] `yarn precommit` passes.
 
-## Open questions
+### The one schema change: `enabled` could never be false
 
-- **Alias rename semantics.** Rewrite dependent override paths, or refuse the
-  rename while overrides exist?
-- **How much validation belongs client-side?** Kind typos are the most common
-  error and only the registry can catch them — but the registry is deliberately
-  not a gate. A warning, probably.
-- **Undo.** Nothing here is undoable. Worth a `GraphVersions` snapshot on
-  destructive operations, which Phase 5 introduces anyway.
+`GraphImports.enabled` was declared `BoolField()`, which generates
+`required: true`. In PocketBase a required bool means **must be true** — `false`
+is rejected as `validation_required` — so the field could be switched on and
+never off. Nothing had noticed because Phase 1–3 only ever wrote `true`, and the
+resolver's `enabled: false` path was reachable from a fixture but not from the
+API.
+
+Fixed by `BoolField().optional()` plus a generated migration
+(`1786151776_updated_GraphImports.js`). This is the phase's only schema change,
+and it is a correction rather than new surface.
+
+### Two override behaviours the UI now has to state out loud
+
+Both fall out of the engine and the collection, and both were silent failures
+before:
+
+- **One override per pair of ports.** `GraphEdgeOverrides` is uniquely indexed on
+  `(graph, sourcePath, sourcePort, targetPath, targetPort)`, so you cannot pin a
+  pair you have also suppressed. The panel checks first and names the override in
+  the way, instead of surfacing a bare "Failed to create record."
+- **Pinning an already-derived edge does nothing.** `applyOverrides` skips a pin
+  whose edge id already exists and leaves it `origin: 'derived'`. The panel
+  refuses that pin rather than writing a row and reporting success over an
+  unchanged canvas.
+
+### A pin only renders where both of its endpoints do
+
+A pin from `port_bank/…` into `control/…` does not appear under
+`?focus=control`: focus filters nodes *before* overrides are applied, so the
+source is out of frame and the override cannot resolve. That is the engine
+working as designed — a focused view shows the wiring internal to that subtree —
+and it is also why stale reporting is switched off under focus. Worth knowing
+before concluding that a pin failed to save.
+
+## Answered questions
+
+- **Alias rename semantics.** *Rewrite the dependent override paths*, behind a
+  confirmation that states how many will change. Refusing the rename would turn a
+  cosmetic edit into a dead end whose only exit is deleting work. The rewrite is
+  not atomic — PocketBase has no multi-record transaction — so the override
+  panel's stale detection stays as the backstop. Written up in
+  [IMPORTS.md § Renaming an alias](../IMPORTS.md#renaming-an-alias).
+- **How much validation belongs client-side?** A warning, as suspected. The kind
+  combobox lists `PortKinds` but accepts free text, and flags a kind with no
+  registry row without blocking the save — matching the engine, which still
+  connects unregistered kinds to themselves and reports `unknown-port-kind` as
+  *info*. Making the registry a gate here would contradict the model.
+- **Undo.** Deferred to Phase 5 with `GraphVersions`, which introduces snapshots
+  anyway. Until then the destructive operations carry confirmations instead:
+  deleting a graph with importers additionally requires typing its machine name.
+
+## Notes for Phase 5
+
+- `GraphViewerProvider` now also exposes the *stored* form — `rootNodes`,
+  `rootImports`, `graphsById`, `overrides` — straight off the already-loaded
+  tree, plus `applyNodePatch` / `applyOverridePatch`. Fork/clone can read what it
+  is copying from there without a second fetch.
+- Writes are optimistic through those same patch functions, which replace by id.
+  Anything Phase 5 adds should go through them rather than calling `reload()`,
+  which re-resolves the whole tree.
+- `GraphEdgeOverrides` now has a realtime subscription alongside `GraphNodes` and
+  `GraphImports`; the viewer-context test asserts all three are torn down.
+- Per-instance node positions are still unsolved (see decision 4 above) and are
+  the natural companion to per-import attribute overrides.

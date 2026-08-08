@@ -9,6 +9,8 @@ import {
   collectDescendants,
   nextAvailableAlias,
   isValidAlias,
+  isUnderAlias,
+  rewriteAliasPrefix,
   MAX_IMPORT_DEPTH,
   type ImportEdge,
 } from '@project/shared';
@@ -203,5 +205,68 @@ describe('nextAvailableAlias', () => {
   it('produces aliases that satisfy the alias pattern', () => {
     const alias = nextAvailableAlias('battery_system', ['battery_system']);
     expect(isValidAlias(alias)).toBe(true);
+  });
+});
+
+// Renaming an alias invalidates every override beneath it, because the alias is
+// stored verbatim inside `sourcePath` / `targetPath`. The editor rewrites those
+// paths in the same operation — see docs/IMPORTS.md § Renaming an alias.
+describe('isUnderAlias', () => {
+  it('matches an instance directly under the alias', () => {
+    expect(isUnderAlias('port_bank/abc', 'port_bank')).toBe(true);
+  });
+
+  it('matches an instance nested deeper', () => {
+    expect(isUnderAlias('port_bank/cells/abc', 'port_bank')).toBe(true);
+  });
+
+  it('does not match a root-graph node', () => {
+    expect(isUnderAlias('abc', 'port_bank')).toBe(false);
+  });
+
+  it('does not match an alias that merely shares a prefix', () => {
+    // The separator is what stops `port_bank` swallowing `port_bank_2`.
+    expect(isUnderAlias('port_bank_2/abc', 'port_bank')).toBe(false);
+  });
+
+  it('does not match the alias on its own', () => {
+    expect(isUnderAlias('port_bank', 'port_bank')).toBe(false);
+  });
+});
+
+describe('rewriteAliasPrefix', () => {
+  it('re-points an instance under the renamed alias', () => {
+    expect(rewriteAliasPrefix('port_bank/abc', 'port_bank', 'harbour')).toBe(
+      'harbour/abc'
+    );
+  });
+
+  it('rewrites only the leading segment of a nested path', () => {
+    expect(
+      rewriteAliasPrefix('port_bank/cells/abc', 'port_bank', 'harbour')
+    ).toBe('harbour/cells/abc');
+  });
+
+  it('leaves other imports and root nodes untouched', () => {
+    expect(
+      rewriteAliasPrefix('starboard_bank/abc', 'port_bank', 'harbour')
+    ).toBe('starboard_bank/abc');
+    expect(rewriteAliasPrefix('abc', 'port_bank', 'harbour')).toBe('abc');
+  });
+
+  it('does not rewrite an alias that merely shares a prefix', () => {
+    expect(rewriteAliasPrefix('port_bank_2/abc', 'port_bank', 'harbour')).toBe(
+      'port_bank_2/abc'
+    );
+  });
+
+  it('keeps the result addressable by the same node id', () => {
+    const before = buildInstanceId(['port_bank', 'cells'], 'abc');
+    const after = rewriteAliasPrefix(before, 'port_bank', 'harbour');
+
+    expect(parseInstanceId(after)).toEqual({
+      path: ['harbour', 'cells'],
+      nodeId: 'abc',
+    });
   });
 });

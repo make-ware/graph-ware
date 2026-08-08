@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { ArrowLeft, ExternalLink, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -27,6 +28,7 @@ function samePath(left: readonly string[], right: readonly string[]): boolean {
  */
 export function GraphSidebar() {
   const { graph, subgraphs, focus, setFocus, isOwner } = useGraphViewer();
+  const pathname = usePathname();
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
@@ -64,6 +66,16 @@ export function GraphSidebar() {
             </Badge>
           )}
         </div>
+
+        {/* Only on the viewer route — the editor already is the edit surface. */}
+        {graph && isOwner && !pathname.endsWith('/edit') && (
+          <Button asChild size="sm" variant="outline" className="w-full">
+            <Link href={`/graphs/${graph.id}/edit`}>
+              <Pencil className="size-3.5" />
+              Edit graph
+            </Link>
+          </Button>
+        )}
       </div>
 
       <Separator />
