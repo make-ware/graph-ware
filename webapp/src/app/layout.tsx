@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/contexts/auth-context';
+import { ThemeProvider } from '@/components/layout/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
 
 const geistSans = Geist({
@@ -25,16 +26,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    // next-themes writes the theme class onto <html> before hydration, so the
+    // server's markup never matches — suppressHydrationWarning is required.
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {/* Chrome lives in the route-group layouts, not here: `(shell)` adds
-            the navigation bar, `(viewer)` deliberately runs without it. */}
-        <AuthProvider>
-          {children}
-          <Toaster />
-        </AuthProvider>
+            the navigation bar, `(viewer)` deliberately runs without it. The
+            theme is global, though — both route groups read it. */}
+        <ThemeProvider>
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

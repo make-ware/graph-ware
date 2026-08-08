@@ -1,0 +1,138 @@
+{
+  "id": "lswm3kq8xv2npd94rjt6hbc0",
+  "uid": "LightSwitch",
+  "name": "light_switch",
+  "label": "Light Switch",
+  "namespace": "examples",
+  "description": "The simplest possible circuit: a mains supply feeding a wall switch feeding a ceiling light. A minimal demo of role-filtered auto-wiring.",
+  "visibility": "public",
+  "tags": ["demo", "electrical"],
+  "elements": [
+    {
+      "id": "mns4qw7zkd82xrvb31tfj9hy",
+      "name": "mains_supply",
+      "label": "Mains Supply",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "source",
+          "kind": "role"
+        },
+        {
+          "name": "voltage",
+          "value": "120",
+          "unit": "volts",
+          "kind": "power"
+        },
+        {
+          "name": "frequency",
+          "value": "60",
+          "unit": "hertz",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "line",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "wsw7fj2mqx95kdt3nrbv08zc",
+      "name": "wall_switch",
+      "label": "Wall Switch",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "switch",
+          "kind": "role"
+        },
+        {
+          "name": "type",
+          "value": "single-pole",
+          "kind": "info"
+        }
+      ],
+      "ports": [
+        {
+          "name": "line",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "source",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "source",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "load",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "clt9xp4vhn27mwqr85kdj3fb",
+      "name": "ceiling_light",
+      "label": "Ceiling Light",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "light",
+          "kind": "role"
+        },
+        {
+          "name": "wattage",
+          "value": "60",
+          "unit": "watts",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "line",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "switch",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "switch",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "childGraphs": []
+}

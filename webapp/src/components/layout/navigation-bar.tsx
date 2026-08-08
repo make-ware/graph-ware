@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Menu, LogOut, Library, Network, Settings, Users } from 'lucide-react';
+import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { WorkspaceSwitcher } from '@/components/layout/workspace-switcher';
 import { useAuth } from '@/hooks/use-auth';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -90,7 +91,8 @@ export function NavigationBar({ className }: NavigationBarProps) {
 
           {/* Desktop Auth Navigation */}
           {!isMobile && (
-            <nav className="flex items-center">
+            <nav className="flex items-center gap-2">
+              <ThemeToggle />
               {isLoading ? (
                 <div className="h-8 w-20 animate-pulse bg-muted rounded" />
               ) : isAuthenticated ? (
@@ -231,6 +233,12 @@ export function NavigationBar({ className }: NavigationBarProps) {
                       ))}
                     </>
                   )}
+                  <div className="border-t pt-4">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">
+                      Theme
+                    </p>
+                    <ThemeToggle variant="inline" />
+                  </div>
                 </div>
               </SheetContent>
             </Sheet>

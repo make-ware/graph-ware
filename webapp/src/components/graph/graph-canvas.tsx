@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   Background,
+  type ColorMode,
   Controls,
   type Edge,
   MiniMap,
@@ -10,6 +11,7 @@ import {
   type NodeChange,
   ReactFlow,
 } from '@xyflow/react';
+import { useTheme } from 'next-themes';
 import type { FlatNode, GraphView, NodePosition } from '@project/shared';
 import {
   GRAPH_NODE_TYPE,
@@ -66,6 +68,12 @@ export function GraphCanvas({
   canDragNode,
 }: GraphCanvasProps) {
   const isEditable = Boolean(onNodeMoved);
+
+  // XYFlow ships its own light/dark stylesheet for the controls and handles,
+  // which is keyed off this prop rather than the `.dark` class. `theme` is the
+  // stored preference, so 'system' passes straight through to XYFlow's own
+  // media query; it is undefined until next-themes hydrates.
+  const { theme } = useTheme();
 
   // Where a node sits *during* a drag. XYFlow will not move a controlled node
   // on its own, so without this it stays put under the cursor.
@@ -128,6 +136,7 @@ export function GraphCanvas({
       nodes={nodes}
       edges={edges}
       nodeTypes={NODE_TYPES}
+      colorMode={(theme as ColorMode) ?? 'system'}
       nodesDraggable={isEditable}
       // There is no "connect" gesture in this app, in either mode. Wiring is
       // derived from ports; dragging a handle would imply a stored edge.

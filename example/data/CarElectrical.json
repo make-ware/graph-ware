@@ -1,0 +1,90 @@
+{
+  "id": "carwx8jqm2kv5nzd7trf94hp",
+  "uid": "CarElectrical",
+  "name": "car_electrical",
+  "label": "Car Electrical System",
+  "namespace": "examples",
+  "description": "A basic 12V automotive electrical system composed from subsystems: battery & charging, the starting system, and the fused lights & accessories, all distributed through a root-level fuse box. Focus on a subsystem to see just its wiring.",
+  "visibility": "public",
+  "tags": ["demo", "electrical", "automotive"],
+  "elements": [
+    {
+      "id": "fus8qz3nvk62mwjr7xdt5hcp",
+      "name": "fuse_box",
+      "label": "Fuse Box",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "fused",
+          "kind": "role"
+        },
+        {
+          "name": "rating",
+          "value": "100",
+          "unit": "amps",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "main",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "battery",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "battery",
+                    "operator": "eq"
+                  },
+                  {
+                    "attribute": "voltage",
+                    "value": "10",
+                    "operator": "gte"
+                  },
+                  {
+                    "attribute": "voltage",
+                    "value": "15",
+                    "operator": "lte"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "circuits",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "power"
+        }
+      ]
+    }
+  ],
+  "imports": [
+    {
+      "child": "CarBatterySystem",
+      "alias": "battery_system",
+      "label": "Battery & Charging"
+    },
+    {
+      "child": "CarStartingSystem",
+      "alias": "starting_system",
+      "label": "Starting System"
+    },
+    {
+      "child": "CarAccessories",
+      "alias": "accessories",
+      "label": "Lights & Accessories"
+    }
+  ],
+  "childGraphs": []
+}

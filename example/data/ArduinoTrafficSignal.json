@@ -1,0 +1,24 @@
+{
+  "id": "ard7kq2xvm94npd5rjt8hbc3",
+  "uid": "ArduinoTrafficSignal",
+  "name": "arduino_traffic_signal",
+  "label": "Arduino Traffic Signal",
+  "namespace": "examples",
+  "description": "An Arduino Uno driving a red/yellow/green traffic light, composed from two subsystems: the controller (Arduino, USB power, pedestrian button) and the signal head (LEDs with current-limiting resistors). Focus on either subsystem to see just its wiring.",
+  "visibility": "public",
+  "tags": ["demo", "electronics", "arduino"],
+  "elements": [],
+  "imports": [
+    {
+      "child": "ArduinoController",
+      "alias": "controller",
+      "label": "Controller"
+    },
+    {
+      "child": "TrafficLightHead",
+      "alias": "signal_head",
+      "label": "Signal Head"
+    }
+  ],
+  "childGraphs": []
+}

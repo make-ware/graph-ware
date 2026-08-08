@@ -1,0 +1,125 @@
+{
+  "id": "css6mw3xqk85jvnr2hdt9zfc",
+  "uid": "CarStartingSystem",
+  "name": "car_starting_system",
+  "label": "Starting System",
+  "namespace": "examples",
+  "description": "The ignition switch and starter motor. A subsystem of the Car Electrical System demo.",
+  "visibility": "unlisted",
+  "tags": ["demo", "electrical", "automotive", "subsystem"],
+  "elements": [
+    {
+      "id": "ign4xw7mqz25kvnr9jdt8hfb",
+      "name": "ignition_switch",
+      "label": "Ignition Switch",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "ignition",
+          "kind": "role"
+        }
+      ],
+      "ports": [
+        {
+          "name": "feed",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "fused",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "fused",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "acc",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "str6mv2xqk84jwnr3hdt7zfc",
+      "name": "starter_motor",
+      "label": "Starter Motor",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "starter",
+          "kind": "role"
+        },
+        {
+          "name": "current",
+          "value": "150",
+          "unit": "amps",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "battery_feed",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "battery",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "battery",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "trigger",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "ignition",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "ignition",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "childGraphs": []
+}

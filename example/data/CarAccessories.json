@@ -1,0 +1,94 @@
+{
+  "id": "cac8mw5xqk37jvnr4hdt2zfc",
+  "uid": "CarAccessories",
+  "name": "car_accessories",
+  "label": "Lights & Accessories",
+  "namespace": "examples",
+  "description": "The fused loads: headlights and horn. A subsystem of the Car Electrical System demo.",
+  "visibility": "unlisted",
+  "tags": ["demo", "electrical", "automotive", "subsystem"],
+  "elements": [
+    {
+      "id": "hdl9qz5nvk37mwjr2xdt4hcp",
+      "name": "headlights",
+      "label": "Headlights",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "load",
+          "kind": "role"
+        },
+        {
+          "name": "wattage",
+          "value": "110",
+          "unit": "watts",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "power",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "fused",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "fused",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hrn3xw8mqz65kvnr4jdt2hfb",
+      "name": "horn",
+      "label": "Horn",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "load",
+          "kind": "role"
+        }
+      ],
+      "ports": [
+        {
+          "name": "power",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "fused",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "fused",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "childGraphs": []
+}

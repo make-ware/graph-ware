@@ -32,17 +32,67 @@ const DEMO_USER = {
 };
 
 const PORT_KINDS = [
-  { key: 'power', label: 'Power', color: '#f59e0b', description: 'DC or AC power distribution' },
-  { key: 'data/canbus', label: 'CAN bus', color: '#06b6d4', description: 'CAN bus data link' },
-  { key: 'data/vbus', label: 'VE.Bus', color: '#10b981', description: 'Victron VE.Bus data link' },
-  { key: 'video/hdmi', label: 'HDMI', color: '#a855f7', description: 'HDMI video output' },
+  {
+    key: 'power',
+    label: 'Power',
+    color: '#f59e0b',
+    description: 'DC or AC power distribution',
+  },
+  {
+    key: 'data/canbus',
+    label: 'CAN bus',
+    color: '#06b6d4',
+    description: 'CAN bus data link',
+  },
+  {
+    key: 'data/vbus',
+    label: 'VE.Bus',
+    color: '#10b981',
+    description: 'Victron VE.Bus data link',
+  },
+  {
+    key: 'video/hdmi',
+    label: 'HDMI',
+    color: '#a855f7',
+    description: 'HDMI video output',
+  },
+  {
+    key: 'signal/gpio',
+    label: 'GPIO',
+    color: '#3b82f6',
+    description: 'Digital GPIO signal',
+  },
+  {
+    key: 'signal/red',
+    label: 'Red Signal',
+    color: '#ef4444',
+    description: 'Red lamp drive signal',
+  },
+  {
+    key: 'signal/yellow',
+    label: 'Yellow Signal',
+    color: '#eab308',
+    description: 'Yellow lamp drive signal',
+  },
+  {
+    key: 'signal/green',
+    label: 'Green Signal',
+    color: '#22c55e',
+    description: 'Green lamp drive signal',
+  },
 ];
 
-// uid -> [{ alias, label }]. Two entries for one child is the point.
+// Legacy uid -> [{ alias, label }] for samples that predate the inline
+// `imports` field. Two entries for one child is the point. Newer samples
+// declare their imports in their own JSON instead.
 const IMPORTS = {
   testDataElement: [
     { child: 'BatterySystem', alias: 'port_bank', label: 'Port Battery Bank' },
-    { child: 'BatterySystem', alias: 'starboard_bank', label: 'Starboard Battery Bank' },
+    {
+      child: 'BatterySystem',
+      alias: 'starboard_bank',
+      label: 'Starboard Battery Bank',
+    },
     { child: 'EngineSystem', alias: 'control', label: 'Control System' },
   ],
 };
@@ -53,7 +103,9 @@ function readEnv(name, fallback) {
   for (const file of ['.env', '.env.example']) {
     try {
       const contents = fs.readFileSync(path.join(ROOT, file), 'utf8');
-      const match = contents.match(new RegExp(`^\\s*${name}\\s*=\\s*(.+)\\s*$`, 'm'));
+      const match = contents.match(
+        new RegExp(`^\\s*${name}\\s*=\\s*(.+)\\s*$`, 'm')
+      );
       if (match) return match[1].trim().replace(/^["']|["']$/g, '');
     } catch {
       // Missing file — try the next source.
@@ -67,7 +119,9 @@ function loadSampleGraphs() {
   return fs
     .readdirSync(SAMPLE_DIR)
     .filter((file) => file.endsWith('.json'))
-    .map((file) => JSON.parse(fs.readFileSync(path.join(SAMPLE_DIR, file), 'utf8')));
+    .map((file) =>
+      JSON.parse(fs.readFileSync(path.join(SAMPLE_DIR, file), 'utf8'))
+    );
 }
 
 /** Find one record by filter, or null. Avoids the SDK's 404-as-throw. */
@@ -88,7 +142,12 @@ async function seedPortKinds(pb) {
   for (const kind of PORT_KINDS) {
     // Global rows: no workspace, which is also why this needs the superuser
     // credentials — nobody else may write them.
-    await upsert(pb, 'PortKinds', `workspace = "" && key = "${kind.key}"`, kind);
+    await upsert(
+      pb,
+      'PortKinds',
+      `workspace = "" && key = "${kind.key}"`,
+      kind
+    );
   }
   console.log(`  port kinds:  ${PORT_KINDS.length}`);
 }
@@ -154,8 +213,12 @@ async function seedGraphs(pb, owner, workspace, samples) {
         name: sample.name,
         label: sample.label,
         namespace: sample.namespace ?? '',
-        visibility: 'private',
-        tags: ['sample'],
+        description: sample.description ?? '',
+        // Samples marked public in their JSON become the built-in demo
+        // library, visible to every signed-in user; the rest stay private
+        // to the demo workspace.
+        visibility: sample.visibility ?? 'private',
+        tags: sample.tags ?? ['sample'],
       }
     );
     byUid.set(sample.uid, graph);
@@ -174,17 +237,33 @@ async function seedGraphs(pb, owner, workspace, samples) {
         }
       );
     }
+
+    // The sample is authoritative for its own graph: a node it no longer
+    // declares — e.g. one that moved into a subsystem child — must not
+    // survive a reseed as a duplicate.
+    const keep = new Set(
+      (sample.elements ?? []).map((element) => element.name)
+    );
+    const existingNodes = await pb
+      .collection('GraphNodes')
+      .getFullList({ filter: `graph = "${graph.id}"` });
+    for (const node of existingNodes) {
+      if (!keep.has(node.name)) {
+        await pb.collection('GraphNodes').delete(node.id);
+      }
+    }
   }
 
   console.log(`  graphs:      ${byUid.size}`);
   return byUid;
 }
 
-async function seedImports(pb, byUid) {
+async function seedImports(pb, byUid, samples) {
   let count = 0;
 
-  for (const [parentUid, links] of Object.entries(IMPORTS)) {
-    const parent = byUid.get(parentUid);
+  for (const sample of samples) {
+    const links = sample.imports ?? IMPORTS[sample.uid] ?? [];
+    const parent = byUid.get(sample.uid);
     if (!parent) continue;
 
     for (const [index, link] of links.entries()) {
@@ -205,6 +284,18 @@ async function seedImports(pb, byUid) {
         }
       );
       count++;
+    }
+
+    // Same authority rule as nodes: drop import rows the sample no longer
+    // declares, so a reshuffled composition reseeds cleanly.
+    const keep = new Set(links.map((link) => link.alias));
+    const existingImports = await pb
+      .collection('GraphImports')
+      .getFullList({ filter: `parent = "${parent.id}"` });
+    for (const row of existingImports) {
+      if (!keep.has(row.alias)) {
+        await pb.collection('GraphImports').delete(row.id);
+      }
     }
   }
 
@@ -230,7 +321,9 @@ async function main() {
   try {
     await pb.collection('_superusers').authWithPassword(email, password);
   } catch (error) {
-    console.error(`Could not sign in to PocketBase at ${url}: ${error.message}`);
+    console.error(
+      `Could not sign in to PocketBase at ${url}: ${error.message}`
+    );
     console.error('Is `yarn dev` running, and does that superuser exist?');
     process.exit(1);
   }
@@ -244,11 +337,16 @@ async function main() {
   const workspace = await seedWorkspace(pb, user);
   console.log(`  workspace:   ${workspace.slug}`);
 
-  const byUid = await seedGraphs(pb, user.id, workspace.id, loadSampleGraphs());
-  await seedImports(pb, byUid);
+  const samples = loadSampleGraphs();
+  const byUid = await seedGraphs(pb, user.id, workspace.id, samples);
+  await seedImports(pb, byUid, samples);
 
-  console.log('\nDone. Sign in as the demo user and open the `testDataElement` graph —');
-  console.log('it imports BatterySystem twice, as port_bank and starboard_bank.');
+  console.log(
+    '\nDone. Sign in as the demo user and open the `testDataElement` graph —'
+  );
+  console.log(
+    'it imports BatterySystem twice, as port_bank and starboard_bank.'
+  );
 }
 
 main().catch((error) => {

@@ -1,0 +1,289 @@
+{
+  "id": "tlh9mw6xqk28jvnr3hdt7zfc",
+  "uid": "TrafficLightHead",
+  "name": "traffic_light_head",
+  "label": "Traffic Light Head",
+  "namespace": "examples",
+  "description": "The red, yellow, and green LEDs with their current-limiting resistors. A subsystem of the Arduino Traffic Signal demo.",
+  "visibility": "unlisted",
+  "tags": ["demo", "electronics", "subsystem"],
+  "elements": [
+    {
+      "id": "rrd2mv6xqk39jwnr8hdt4zfc",
+      "name": "resistor_red",
+      "label": "220Ω Resistor (Red)",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "resistor",
+          "kind": "role"
+        },
+        {
+          "name": "resistance",
+          "value": "220",
+          "unit": "ohms",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "signal",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/red",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "controller",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "controller",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "signal",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "signal/red"
+        }
+      ]
+    },
+    {
+      "id": "ryl7qz4nvk26mwjr9xdt3hcp",
+      "name": "resistor_yellow",
+      "label": "220Ω Resistor (Yellow)",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "resistor",
+          "kind": "role"
+        },
+        {
+          "name": "resistance",
+          "value": "220",
+          "unit": "ohms",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "signal",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/yellow",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "controller",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "controller",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "signal",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "signal/yellow"
+        }
+      ]
+    },
+    {
+      "id": "rgn5xw9mqz42kvnr7jdt6hfb",
+      "name": "resistor_green",
+      "label": "220Ω Resistor (Green)",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "resistor",
+          "kind": "role"
+        },
+        {
+          "name": "resistance",
+          "value": "220",
+          "unit": "ohms",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "signal",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/green",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "controller",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "controller",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "signal",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "signal/green"
+        }
+      ]
+    },
+    {
+      "id": "led4mv3xqk68jwnr2hdt9zfc",
+      "name": "red_light",
+      "label": "Red LED",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "led",
+          "kind": "role"
+        },
+        {
+          "name": "color",
+          "value": "red",
+          "kind": "info"
+        }
+      ],
+      "ports": [
+        {
+          "name": "anode",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/red",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "resistor",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "resistor",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "led6qz8nvk35mwjr4xdt2hcp",
+      "name": "yellow_light",
+      "label": "Yellow LED",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "led",
+          "kind": "role"
+        },
+        {
+          "name": "color",
+          "value": "yellow",
+          "kind": "info"
+        }
+      ],
+      "ports": [
+        {
+          "name": "anode",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/yellow",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "resistor",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "resistor",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "led9xw2mqz57kvnr3jdt8hfb",
+      "name": "green_light",
+      "label": "Green LED",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "led",
+          "kind": "role"
+        },
+        {
+          "name": "color",
+          "value": "green",
+          "kind": "info"
+        }
+      ],
+      "ports": [
+        {
+          "name": "anode",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/green",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "resistor",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "resistor",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "childGraphs": []
+}

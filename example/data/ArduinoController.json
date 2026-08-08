@@ -1,0 +1,160 @@
+{
+  "id": "act7mw2xqk94jvnr8hdt5zfc",
+  "uid": "ArduinoController",
+  "name": "arduino_controller",
+  "label": "Arduino Controller",
+  "namespace": "examples",
+  "description": "The Arduino Uno with its USB power supply and pedestrian push button. A subsystem of the Arduino Traffic Signal demo.",
+  "visibility": "unlisted",
+  "tags": ["demo", "electronics", "arduino", "subsystem"],
+  "elements": [
+    {
+      "id": "uno5mw8xqk27jvnr4hdt9zfc",
+      "name": "arduino_uno",
+      "label": "Arduino Uno",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "controller",
+          "kind": "role"
+        },
+        {
+          "name": "mcu",
+          "value": "ATmega328P",
+          "kind": "info"
+        },
+        {
+          "name": "logic_voltage",
+          "value": "5",
+          "unit": "volts",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "usb",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "supply",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "supply",
+                    "operator": "eq"
+                  },
+                  {
+                    "attribute": "voltage",
+                    "value": "5",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "d2_red",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "signal/red"
+        },
+        {
+          "name": "d3_yellow",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "signal/yellow"
+        },
+        {
+          "name": "d4_green",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "signal/green"
+        },
+        {
+          "name": "d7_button",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/gpio",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "button",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "button",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "usb3qz7nvk58mwjr2xdt6hcp",
+      "name": "usb_power",
+      "label": "USB Power Supply",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "supply",
+          "kind": "role"
+        },
+        {
+          "name": "voltage",
+          "value": "5",
+          "unit": "volts",
+          "kind": "power"
+        },
+        {
+          "name": "current",
+          "value": "2",
+          "unit": "amps",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "vbus",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "btn8xw4mqz93kvnr6jdt5hfb",
+      "name": "push_button",
+      "label": "Pedestrian Button",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "button",
+          "kind": "role"
+        }
+      ],
+      "ports": [
+        {
+          "name": "signal",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "signal/gpio"
+        }
+      ]
+    }
+  ],
+  "childGraphs": []
+}

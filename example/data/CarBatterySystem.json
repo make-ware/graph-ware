@@ -1,0 +1,100 @@
+{
+  "id": "cbs4mw7xqk92jvnr5hdt3zfc",
+  "uid": "CarBatterySystem",
+  "name": "car_battery_system",
+  "label": "Battery & Charging",
+  "namespace": "examples",
+  "description": "The 12V battery and the alternator that keeps it charged. A subsystem of the Car Electrical System demo.",
+  "visibility": "unlisted",
+  "tags": ["demo", "electrical", "automotive", "subsystem"],
+  "elements": [
+    {
+      "id": "bat2mv9xqk47jwnr5hdt3zfc",
+      "name": "battery",
+      "label": "12V Battery",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "battery",
+          "kind": "role"
+        },
+        {
+          "name": "voltage",
+          "value": "12",
+          "unit": "volts",
+          "kind": "power"
+        },
+        {
+          "name": "capacity",
+          "value": "60",
+          "unit": "amp-hours",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "supply",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "power"
+        },
+        {
+          "name": "charge",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "charger",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [
+                  {
+                    "attribute": "role",
+                    "value": "charger",
+                    "operator": "eq"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "alt5kj8wqn93xvmr2tzd6hfb",
+      "name": "alternator",
+      "label": "Alternator",
+      "attributes": [
+        {
+          "name": "role",
+          "value": "charger",
+          "kind": "role"
+        },
+        {
+          "name": "voltage",
+          "value": "14",
+          "unit": "volts",
+          "kind": "power"
+        },
+        {
+          "name": "current",
+          "value": "90",
+          "unit": "amps",
+          "kind": "power"
+        }
+      ],
+      "ports": [
+        {
+          "name": "charge",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "power"
+        }
+      ]
+    }
+  ],
+  "childGraphs": []
+}
