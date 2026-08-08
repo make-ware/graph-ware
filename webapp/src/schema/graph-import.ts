@@ -35,7 +35,14 @@ export const GraphImportSchema = z
     label: TextField({ max: 200 }).optional(),
     order: NumberField({ min: 0, noDecimal: true }),
     // Exclude a subtree from resolution without losing the link.
-    enabled: BoolField(),
+    //
+    // `.optional()` is load-bearing, not laxity. A *required* bool in
+    // PocketBase means "must be true": `false` is indistinguishable from blank,
+    // so the API rejects it with `validation_required`. A required `enabled`
+    // could therefore never be switched off, which is the only thing the field
+    // is for. Records still always carry a value — PocketBase stores `false`
+    // rather than null, and `GraphImportInputSchema` defaults it to `true`.
+    enabled: BoolField().optional(),
   })
   .extend(baseSchema);
 
