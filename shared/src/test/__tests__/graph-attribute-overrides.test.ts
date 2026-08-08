@@ -7,12 +7,12 @@ import {
   type GraphDiagnostic,
   type Port,
   type ResolvedGraph,
-} from '@project/shared';
+} from '../../index';
 import {
   SAMPLE_PORT_KINDS,
   makeNode,
   resolvedFrom,
-} from './fixtures/graph-fixtures';
+} from '../fixtures/graph-fixtures';
 
 // The acceptance case in prose: `port_bank` and `starboard_bank` are the same
 // `BatterySystem` record under two aliases, and one of them runs at 24 V. The

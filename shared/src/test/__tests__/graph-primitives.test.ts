@@ -9,7 +9,7 @@ import {
   GRAPH_UID_PATTERN,
   IMPORT_ALIAS_PATTERN,
   NAMESPACE_PATTERN,
-} from '@project/shared';
+} from '../../index';
 import batterySystem from '../../../../example/data/BatterySystem.json';
 import engineSystem from '../../../../example/data/EngineSystem.json';
 

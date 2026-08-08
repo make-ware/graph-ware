@@ -12,13 +12,15 @@ import type { User } from '../schema/user';
 import type { Workspace } from '../schema/workspace';
 import type { WorkspaceMember } from '../schema/workspace-member';
 
-// Typed PocketBase interface.
-//
-// Stricter than the one in `src/lib/types.ts`: only the capitalized collection
-// names, which is what the data layer uses. Register every new collection in
-// both files.
+// Typed PocketBase interface — the only one. There used to be a second, looser
+// copy at `webapp/src/lib/types.ts`; they were collapsed when this package was
+// extracted, so a new collection is registered in exactly one place.
 export interface TypedPocketBase extends PocketBase {
-  collection(idOrName: 'Users'): RecordService<User>;
+  // Both casings for the users collection. `'Users'` is the collection's real
+  // name — what the mutators use and what a pb_hook tag must match exactly —
+  // while `'users'` is PocketBase's routing sugar, which the auth and realtime
+  // code calls. No other collection has that sugar in play.
+  collection(idOrName: 'Users' | 'users'): RecordService<User>;
   collection(idOrName: 'Workspaces'): RecordService<Workspace>;
   collection(idOrName: 'WorkspaceMembers'): RecordService<WorkspaceMember>;
   collection(idOrName: 'Graphs'): RecordService<Graph>;

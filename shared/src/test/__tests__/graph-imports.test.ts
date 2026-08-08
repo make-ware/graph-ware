@@ -13,7 +13,7 @@ import {
   rewriteAliasPrefix,
   MAX_IMPORT_DEPTH,
   type ImportEdge,
-} from '@project/shared';
+} from '../../index';
 
 // The seeded shape: one root importing BatterySystem twice and EngineSystem once.
 const SEEDED: ImportEdge[] = [

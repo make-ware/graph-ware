@@ -8,18 +8,18 @@ import {
   snapshotToNodes,
   buildInstanceId,
   flattenGraph,
-} from '@project/shared';
+} from '../../index';
 import {
   assembleResolvedGraph as assemble,
   toPinnedGraph,
   type ResolvedGraphData,
-} from '@/lib/graph/resolver';
+} from '../../lib/graph/resolver';
 import {
   makeGraph,
   makeImport,
   makeNode,
   makeVersion,
-} from './fixtures/graph-fixtures';
+} from '../fixtures/graph-fixtures';
 
 const CHILD = makeGraph({
   id: 'child',

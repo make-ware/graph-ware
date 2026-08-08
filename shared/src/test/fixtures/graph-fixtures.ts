@@ -8,9 +8,9 @@
 // `SAMPLE_IMPORTS`, mirroring the `IMPORTS` map in `scripts/seed-graphs.mjs`.
 // Change one, change the other.
 
-import batterySystem from '../../../../../example/data/BatterySystem.json';
-import engineSystem from '../../../../../example/data/EngineSystem.json';
-import testDataElement from '../../../../../example/data/testDataElement.json';
+import batterySystem from '../../../../example/data/BatterySystem.json';
+import engineSystem from '../../../../example/data/EngineSystem.json';
+import testDataElement from '../../../../example/data/testDataElement.json';
 import type {
   Attribute,
   Graph,
@@ -22,9 +22,9 @@ import type {
   PortKindRegistry,
   ResolvedChild,
   ResolvedGraph,
-} from '@project/shared';
-import { serializeGraph } from '@project/shared';
-import type { ResolvedGraphData } from '@/lib/graph/resolver';
+} from '../../index';
+import { serializeGraph } from '../../index';
+import type { ResolvedGraphData } from '../../lib/graph/resolver';
 
 interface SampleElement {
   id: string;

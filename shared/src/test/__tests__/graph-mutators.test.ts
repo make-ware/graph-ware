@@ -4,14 +4,14 @@ import {
   GraphNodeMutator,
   GraphImportMutator,
   GraphEdgeOverrideMutator,
-} from '@project/shared/mutators';
-import type { TypedPocketBase } from '@/types';
+} from '../../mutators';
+import type { TypedPocketBase } from '../../types';
 import {
   createMockPocketBase,
   createMockUser,
   MockAuthStore,
   notFoundError,
-} from './fixtures/pocketbase';
+} from '../fixtures/pocketbase';
 
 function setup(signedIn = true) {
   const authStore = new MockAuthStore();

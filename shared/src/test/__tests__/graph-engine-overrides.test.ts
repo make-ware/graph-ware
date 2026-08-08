@@ -6,13 +6,13 @@ import {
   connectNodes,
   flattenGraph,
   type FlatEdge,
-} from '@project/shared';
+} from '../../index';
 import {
   SAMPLES,
   SAMPLE_PORT_KINDS,
   makeOverride,
   sampleTree,
-} from './fixtures/graph-fixtures';
+} from '../fixtures/graph-fixtures';
 
 const idOf = (graph: 'BatterySystem' | 'EngineSystem', name: string) =>
   SAMPLES[graph].elements.find((element) => element.name === name)!.id;

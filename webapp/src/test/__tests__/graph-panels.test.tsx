@@ -8,7 +8,7 @@ import {
 } from '@project/shared';
 import { DiagnosticsPanel } from '@/components/graph/diagnostics-panel';
 import { GraphDetailPanel } from '@/components/graph/graph-detail-panel';
-import { SAMPLE_PORT_KINDS, sampleTree } from './fixtures/graph-fixtures';
+import { SAMPLE_PORT_KINDS, sampleTree } from '@project/shared/test-fixtures';
 
 const COLORS: Record<string, string> = { power: '#f59e0b' };
 const colorFor = (kind: string) => COLORS[kind] ?? FALLBACK_PORT_KIND_COLOR;

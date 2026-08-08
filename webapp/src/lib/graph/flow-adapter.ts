@@ -7,11 +7,19 @@
 //
 // Reference: docs/GRAPH_ENGINE.md
 
+// The last file left in webapp/src/lib/graph: everything else moved to
+// @project/shared, and this one stays because @xyflow/react is a React package
+// with no business in a headless workspace.
 import { type Edge, type Node, Position } from '@xyflow/react';
-import { INSTANCE_PATH_SEPARATOR } from './primitives';
-import { portHandleId } from './engine';
-import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH } from './layout';
-import type { FlatEdge, FlatNode, GraphView } from './types';
+import {
+  DEFAULT_NODE_HEIGHT,
+  DEFAULT_NODE_WIDTH,
+  INSTANCE_PATH_SEPARATOR,
+  portHandleId,
+  type FlatEdge,
+  type FlatNode,
+  type GraphView,
+} from '@project/shared';
 
 // ---------------------------------------------------------------------------
 // Node data

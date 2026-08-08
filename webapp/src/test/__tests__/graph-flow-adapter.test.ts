@@ -13,7 +13,7 @@ import {
   toFlowNodes,
   toPortSlots,
 } from '@/lib/graph/flow-adapter';
-import { SAMPLE_PORT_KINDS, sampleTree } from './fixtures/graph-fixtures';
+import { SAMPLE_PORT_KINDS, sampleTree } from '@project/shared/test-fixtures';
 
 const COLORS: Record<string, string> = {
   power: '#f59e0b',

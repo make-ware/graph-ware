@@ -14,7 +14,7 @@ import {
 } from '@project/shared/mutators';
 import { useAuth } from '@/hooks/use-auth';
 import pb from '@/lib/pocketbase';
-import type { TypedPocketBase } from '@/types';
+import type { TypedPocketBase } from '@project/shared/types';
 
 /** Where the active-workspace choice is remembered between visits. */
 const STORAGE_KEY = 'graph-ware.workspace';

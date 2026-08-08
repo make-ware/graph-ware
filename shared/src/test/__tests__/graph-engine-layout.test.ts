@@ -7,14 +7,14 @@ import {
   flattenGraph,
   layoutGraph,
   type Port,
-} from '@project/shared';
+} from '../../index';
 import {
   SAMPLE_PORT_KINDS,
   makeNode,
   resolvedFrom,
   sampleTree,
   shuffleTree,
-} from './fixtures/graph-fixtures';
+} from '../fixtures/graph-fixtures';
 
 const out: Port = { name: 'out', direction: 'output', kind: 'power' };
 const inp: Port = { name: 'in', direction: 'input', kind: 'power' };

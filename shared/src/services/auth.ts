@@ -1,19 +1,22 @@
-import PocketBase from 'pocketbase';
-import type { User, RegisterData } from '@project/shared';
-import type { TypedPocketBase } from '@/lib/types';
-import { parseAuthError, withRetry } from '@project/shared';
-import { UserMutator } from '@project/shared/mutators';
+// Relative imports, not `@project/shared` — a package must not import itself.
+// Self-referencing would also break `pocketbase-migrate`, which loads this
+// package's sources through tsx from the repo root.
+import type { RegisterData, User } from '../schema/user';
+import { parseAuthError } from '../lib/errors';
+import { withRetry } from '../lib/retry';
+import { UserMutator } from '../mutators/user';
+import type { TypedPocketBase } from '../types';
 
 /**
  * Authentication service that uses mutators and provides high-level auth operations
  */
 export class AuthService {
-  private pb: PocketBase;
+  private pb: TypedPocketBase;
   private userMutator: UserMutator;
 
-  constructor(pb: PocketBase) {
+  constructor(pb: TypedPocketBase) {
     this.pb = pb;
-    this.userMutator = new UserMutator(pb as unknown as TypedPocketBase);
+    this.userMutator = new UserMutator(pb);
   }
 
   /**
@@ -62,7 +65,9 @@ export class AuthService {
     try {
       this.pb.authStore.clear();
 
-      // Clear any additional session storage if needed (browser only)
+      // Clear any additional session storage if needed. Browser-only, and dead
+      // code under the CLI — which persists its token through an AsyncAuthStore
+      // that `authStore.clear()` above already flushes.
       if (typeof window !== 'undefined') {
         try {
           // Remove any app-specific localStorage items
@@ -161,7 +166,7 @@ export class AuthService {
   /**
    * Get the PocketBase client instance
    */
-  getClient(): PocketBase {
+  getClient(): TypedPocketBase {
     return this.pb;
   }
 
@@ -176,6 +181,6 @@ export class AuthService {
 /**
  * Create an AuthService instance from a PocketBase client
  */
-export function createAuthService(pb: PocketBase): AuthService {
+export function createAuthService(pb: TypedPocketBase): AuthService {
   return new AuthService(pb);
 }

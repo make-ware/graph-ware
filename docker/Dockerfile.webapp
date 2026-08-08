@@ -1,8 +1,9 @@
 # Standalone Next.js image, for running the webapp and PocketBase as separate
 # containers. Unlike the monolithic docker/Dockerfile, this builds ONLY the webapp (no
 # PocketBase, no nginx, no supervisor) and uses Next.js standalone output for a
-# slim, self-contained server. There is no `shared` workspace — @project/shared
-# is a tsconfig path alias into webapp/src, so no shared build step is needed.
+# slim, self-contained server. The `shared` workspace is source-only: its
+# exports map points at raw .ts, and webapp/next.config.ts lists it in
+# `transpilePackages`, so it needs its sources here but no build step of its own.
 # Build context = repo root:
 #   docker build -f docker/Dockerfile.webapp -t graph-ware-webapp:local --build-arg NEXT_PUBLIC_POCKETBASE_URL=/ .
 FROM node:20-alpine AS base
@@ -15,7 +16,9 @@ RUN corepack enable && corepack prepare yarn@4.12.0 --activate
 
 COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn ./.yarn
+COPY shared/package.json ./shared/
 COPY webapp/package.json ./webapp/
+COPY cli/package.json ./cli/
 COPY pocketbase/package.json ./pocketbase/
 
 RUN yarn install --immutable
@@ -28,7 +31,9 @@ RUN corepack enable && corepack prepare yarn@4.12.0 --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/.yarn ./.yarn
 COPY package.json yarn.lock .yarnrc.yml ./
+COPY shared ./shared
 COPY webapp ./webapp
+COPY cli/package.json ./cli/
 COPY pocketbase/package.json ./pocketbase/
 
 ENV NEXT_TELEMETRY_DISABLED=1

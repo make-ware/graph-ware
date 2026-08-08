@@ -8,8 +8,8 @@ import {
   type ComparisonOperator,
   type FilterGroup,
   type Port,
-} from '@project/shared';
-import { SAMPLES } from './fixtures/graph-fixtures';
+} from '../../index';
+import { SAMPLES } from '../fixtures/graph-fixtures';
 
 function attributes(...pairs: [string, string][]): Attribute[] {
   return pairs.map(([name, value]) => ({ name, value, kind: 'power' }));

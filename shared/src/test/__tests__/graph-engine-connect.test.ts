@@ -5,7 +5,7 @@ import {
   flattenGraph,
   type Port,
   type PortKindRegistry,
-} from '@project/shared';
+} from '../../index';
 import {
   SAMPLES,
   SAMPLE_PORT_KINDS,
@@ -13,7 +13,7 @@ import {
   resolvedFrom,
   sampleTree,
   shuffleTree,
-} from './fixtures/graph-fixtures';
+} from '../fixtures/graph-fixtures';
 
 function port(
   overrides: Partial<Port> & Pick<Port, 'name' | 'direction'>

@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { User } from '@project/shared';
+import type { User } from '../../schema/user';
 
 /**
  * Mock PocketBase AuthStore

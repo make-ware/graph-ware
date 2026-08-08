@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildInstanceId, flattenGraph, focusNodes } from '@project/shared';
+import { buildInstanceId, flattenGraph, focusNodes } from '../../index';
 import {
   SAMPLES,
   makeNode,
@@ -7,7 +7,7 @@ import {
   sampleTree,
   shuffleTree,
   toResolvedGraph,
-} from './fixtures/graph-fixtures';
+} from '../fixtures/graph-fixtures';
 
 const FUSE_ID = SAMPLES.BatterySystem.elements.find(
   (element) => element.name === 'house_fuse'

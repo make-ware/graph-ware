@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import type { ImportEdge } from '@project/shared';
+import type { ImportEdge } from '../../index';
 import {
   cloneDepth,
   forkedUid,
   partitionImports,
   planClone,
-} from '@/lib/graph/clone';
-import { makeImport } from './fixtures/graph-fixtures';
+} from '../../lib/graph/clone';
+import { makeImport } from '../fixtures/graph-fixtures';
 
 /** The seeded tree: `testDataElement` imports `BatterySystem` twice. */
 const SAMPLE_EDGES: ImportEdge[] = [

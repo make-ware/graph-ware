@@ -18,12 +18,12 @@ import {
   resolveOverrideEndpoints,
   type FlatNode,
   type Port,
-} from '@project/shared';
+} from '../../index';
 import {
   SAMPLE_PORT_KINDS,
   makeOverride,
   sampleTree,
-} from './fixtures/graph-fixtures';
+} from '../fixtures/graph-fixtures';
 
 const nodes = flattenGraph(sampleTree());
 const derived = connectNodes(nodes, SAMPLE_PORT_KINDS);

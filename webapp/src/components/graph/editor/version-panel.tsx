@@ -24,7 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useGraphEditor } from '@/hooks/use-graph-editor';
 import { useGraphViewer } from '@/hooks/use-graph-viewer';
 import pb from '@/lib/pocketbase';
-import type { TypedPocketBase } from '@/types';
+import type { TypedPocketBase } from '@project/shared/types';
 
 /**
  * Publish a version, and put an old one back.

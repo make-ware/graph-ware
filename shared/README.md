@@ -18,16 +18,16 @@ Dockerfiles and every typecheck, and a stale one is a real failure mode.
 
 ## Entry points
 
-| Specifier | Contents |
-| --- | --- |
-| `@project/shared` | schemas, graph primitives, import helpers, engine, snapshot, layout, `errors`/`retry`/`loading-manager` |
-| `@project/shared/schema` | the collection definitions alone |
-| `@project/shared/mutators` | the `BaseMutator` subclasses |
-| `@project/shared/graph` | `resolver` + `clone` — the two graph operations that take a PocketBase client |
-| `@project/shared/types` | `TypedPocketBase` and response/utility types |
-| `@project/shared/client` | `createPocketBaseClient(url, options)` |
-| `@project/shared/services` | `AuthService` / `createAuthService` |
-| `@project/shared/test-fixtures` | mock PocketBase + sample graphs, for consumers' tests |
+| Specifier                       | Contents                                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `@project/shared`               | schemas, graph primitives, import helpers, engine, snapshot, layout, `errors`/`retry`/`loading-manager` |
+| `@project/shared/schema`        | the collection definitions alone                                                                        |
+| `@project/shared/mutators`      | the `BaseMutator` subclasses                                                                            |
+| `@project/shared/graph`         | `resolver` + `clone` — the two graph operations that take a PocketBase client                           |
+| `@project/shared/types`         | `TypedPocketBase` and response/utility types                                                            |
+| `@project/shared/client`        | `createPocketBaseClient(url, options)`                                                                  |
+| `@project/shared/services`      | `AuthService` / `createAuthService`                                                                     |
+| `@project/shared/test-fixtures` | mock PocketBase + sample graphs, for consumers' tests                                                   |
 
 `resolver` and `clone` are kept off the bare barrel so importing
 `@project/shared` never drags the SDK in — the same rule that applied before

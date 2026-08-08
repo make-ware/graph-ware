@@ -4,20 +4,20 @@ import {
   roleCanWrite,
   toSlug,
   WORKSPACE_SLUG_PATTERN,
-} from '@project/shared';
+} from '../../index';
 import {
   GraphVersionMutator,
   WorkspaceMemberMutator,
   WorkspaceMutator,
-} from '@project/shared/mutators';
-import type { TypedPocketBase } from '@/types';
+} from '../../mutators';
+import type { TypedPocketBase } from '../../types';
 import {
   createMockPocketBase,
   createMockUser,
   MockAuthStore,
   notFoundError,
-} from './fixtures/pocketbase';
-import { makeGraph, makeNode, makeVersion } from './fixtures/graph-fixtures';
+} from '../fixtures/pocketbase';
+import { makeGraph, makeNode, makeVersion } from '../fixtures/graph-fixtures';
 
 function setup(signedIn = true) {
   const authStore = new MockAuthStore();

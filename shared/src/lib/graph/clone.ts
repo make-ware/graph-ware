@@ -1,9 +1,9 @@
 // Forking a graph — copying it, and optionally its whole import subtree, into a
 // workspace you can write.
 //
-// Networked, like `resolver.ts`, so it is kept out of the `@project/shared`
-// barrel; the *planning* half is pure and exported so tests can assert what a
-// fork would do without a server.
+// Networked, like `resolver.ts`, so it is kept out of the bare `@project/shared`
+// barrel and reached through `@project/shared/graph`; the *planning* half is
+// pure and exported so tests can assert what a fork would do without a server.
 //
 // The shape of the thing worth getting right: a deep fork copies each graph in
 // the subtree **once**, however many times it is imported, and rewires every

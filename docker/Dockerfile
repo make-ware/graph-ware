@@ -11,7 +11,9 @@ RUN corepack enable && corepack prepare yarn@4.12.0 --activate
 
 # Copy package files
 COPY package.json yarn.lock .yarnrc.yml* ./
+COPY shared/package.json ./shared/
 COPY webapp/package.json ./webapp/
+COPY cli/package.json ./cli/
 # Source path is pocketbase/ for local-dev clarity; in-image path stays /app/pb/
 COPY pocketbase/package.json ./pb/
 
@@ -41,8 +43,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/.yarn ./.yarn
 COPY --from=deps /app/pb/pocketbase ./pb/pocketbase
 
-# Copy workspace files
+# Copy workspace files. `shared` is source-only — the webapp compiles its raw
+# .ts through `transpilePackages`, so the sources have to be here at build time.
 COPY package.json yarn.lock .yarnrc.yml* ./
+COPY shared ./shared
 COPY webapp ./webapp
 COPY pocketbase ./pb
 
@@ -111,6 +115,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.yarn ./.yarn
 # Copy workspace package.json files
 COPY --from=builder --chown=nextjs:nodejs /app/webapp/package.json ./webapp/
 COPY --from=builder --chown=nextjs:nodejs /app/pb/package.json ./pb/
+
+# The whole `shared` workspace, not just its package.json: node_modules below
+# carries a `@project/shared` symlink into it, and a dangling symlink breaks
+# `next start` even though the sources were already compiled into .next.
+COPY --from=builder --chown=nextjs:nodejs /app/shared ./shared
 
 # Install production dependencies only
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules

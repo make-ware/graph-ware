@@ -1,19 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { MAX_IMPORT_DEPTH, type ResolvedGraph } from '@project/shared';
+import { MAX_IMPORT_DEPTH, type ResolvedGraph } from '../../index';
 import {
   assembleResolvedGraph,
   loadImportTree,
   resolveGraph,
   type ResolvedGraphData,
-} from '@/lib/graph/resolver';
-import type { TypedPocketBase } from '@/types';
+} from '../../lib/graph/resolver';
+import type { TypedPocketBase } from '../../types';
 import {
   SAMPLES,
   makeGraph,
   makeImport,
   makeNode,
   sampleBundle,
-} from './fixtures/graph-fixtures';
+} from '../fixtures/graph-fixtures';
 
 const ROOT = SAMPLES.testDataElement.id;
 

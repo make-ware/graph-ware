@@ -1,7 +1,8 @@
 // Loading a graph and its import tree.
 //
-// This is the only file in `lib/graph/` that touches the network, which is why
-// it is deliberately kept out of the `@project/shared` barrel. It splits in two:
+// One of the two files in `lib/graph/` that touch the network, which is why it
+// is kept out of the bare `@project/shared` barrel and reached through
+// `@project/shared/graph` instead. It splits in two:
 //
 //   loadImportTree      breadth-first, one batch per depth level  (networked)
 //   assembleResolvedGraph  records → nested ResolvedGraph          (pure)

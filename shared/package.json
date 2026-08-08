@@ -14,7 +14,9 @@
     "./test-fixtures": "./src/test/fixtures/index.ts",
     "./package.json": "./package.json"
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "build": "echo 'shared is source-only - consumers transpile it'",
     "clean": "echo 'shared is source-only - no build output'",

@@ -16,19 +16,10 @@ export default defineConfig({
     exclude: ['node_modules', 'dist', '.idea', '.git', '.cache'],
   },
   resolve: {
+    // No `@project/shared` aliases: it is a real workspace resolved through its
+    // own `exports` map. Keep this in step with `tsconfig.json` `paths` — an
+    // alias surviving in either file shadows the package.
     alias: [
-      {
-        find: '@project/shared/mutators',
-        replacement: path.resolve(__dirname, './src/mutators/index.ts'),
-      },
-      {
-        find: '@project/shared/schema',
-        replacement: path.resolve(__dirname, './src/schema/index.ts'),
-      },
-      {
-        find: '@project/shared',
-        replacement: path.resolve(__dirname, './src/shared/index.ts'),
-      },
       {
         find: '@',
         replacement: path.resolve(__dirname, './src'),

@@ -7,7 +7,7 @@ import {
   validateGraph,
   type Port,
   type ResolvedGraph,
-} from '@project/shared';
+} from '../../index';
 import {
   SAMPLES,
   SAMPLE_PORT_KINDS,
@@ -15,7 +15,7 @@ import {
   makeOverride,
   resolvedFrom,
   sampleTree,
-} from './fixtures/graph-fixtures';
+} from '../fixtures/graph-fixtures';
 
 const CERBO = buildInstanceId(['control'], SAMPLES.EngineSystem.elements[0].id);
 const PORT_FUSE = buildInstanceId(
