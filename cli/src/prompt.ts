@@ -1,54 +1,29 @@
-// Interactive credential entry, for humans only.
+// Interactive prompts, for humans only — thin wrappers over @inquirer/prompts.
 //
-// The rule that matters: when stdin is not a TTY and the credentials are not in
-// the environment, fail immediately with an actionable message. A CLI that
-// blocks on a prompt nobody can answer is the single most common way an agent
-// invocation hangs forever.
-import { createInterface } from 'node:readline/promises';
-import { Writable } from 'node:stream';
+// The rule that matters: when stdin is not a TTY, never prompt — fail (or
+// proceed) immediately instead. A CLI that blocks on a question nobody can
+// answer is the single most common way an agent invocation hangs forever.
+// Every call site checks `canPrompt(ctx)` first, which also covers `--json`:
+// a prompt would corrupt the single-JSON-object stdout contract.
+import { confirm, input, password, select } from '@inquirer/prompts';
+import type { Ctx } from './context.ts';
 
 export function isInteractive(): boolean {
   return Boolean(process.stdin.isTTY && process.stdout.isTTY);
 }
 
-export async function promptLine(question: string): Promise<string> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    return (await rl.question(question)).trim();
-  } finally {
-    rl.close();
-  }
+/** Whether this invocation may ask questions at all. */
+export function canPrompt(ctx: Ctx): boolean {
+  return isInteractive() && !ctx.printer.json;
 }
 
 /**
- * Read a secret without echoing it.
- *
- * readline has no built-in masking, so the output stream is wrapped in one that
- * drops everything after the prompt has been written.
+ * Ctrl-C inside an inquirer prompt throws rather than killing the process.
+ * Matched by name, not instanceof: the class lives in @inquirer/core, which is
+ * not a direct dependency, and a version skew must not break the detection.
  */
-export async function promptSecret(question: string): Promise<string> {
-  let muted = false;
-  const output = new Writable({
-    write(chunk, _encoding, callback) {
-      if (!muted) process.stdout.write(chunk);
-      callback();
-    },
-  });
-
-  const rl = createInterface({
-    input: process.stdin,
-    output,
-    terminal: true,
-  });
-
-  try {
-    const answer = rl.question(question);
-    muted = true;
-    const value = await answer;
-    process.stdout.write('\n');
-    return value;
-  } finally {
-    muted = false;
-    rl.close();
-  }
+export function isPromptAbort(error: unknown): boolean {
+  return error instanceof Error && error.name === 'ExitPromptError';
 }
+
+export const ask = { confirm, input, password, select };

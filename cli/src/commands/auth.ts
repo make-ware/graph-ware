@@ -3,11 +3,18 @@
 // Nothing here saves a token by hand: the client was built with an
 // AsyncAuthStore over the config file, so `authWithPassword` and
 // `authStore.clear()` persist on their own.
+import type { Command } from 'commander';
 import type { RegisterData, User } from '@project/shared';
-import { bool, str, type Command } from '../command.ts';
-import { dropProfile } from '../config.ts';
-import { isInteractive, promptLine, promptSecret } from '../prompt.ts';
+import { dropProfile } from './../config.ts';
 import type { Ctx } from '../context.ts';
+import { ask, canPrompt } from '../prompt.ts';
+import type { Runtime } from '../runtime.ts';
+
+const userFields: Array<[string, (user: User) => string]> = [
+  ['id', (user) => user.id ?? ''],
+  ['email', (user) => user.email ?? ''],
+  ['name', (user) => user.name ?? ''],
+];
 
 /**
  * Credentials from flags, else the environment, else an interactive prompt.
@@ -26,163 +33,198 @@ async function credentials(
     return { email: resolvedEmail, password: resolvedPassword };
   }
 
-  if (!isInteractive()) {
+  if (!canPrompt(ctx)) {
     throw new Error(
       'No credentials and no terminal to ask on. Pass --email and --password, or set GRAPHWARE_EMAIL and GRAPHWARE_PASSWORD.'
     );
   }
 
   return {
-    email: resolvedEmail ?? (await promptLine('Email: ')),
-    password: resolvedPassword ?? (await promptSecret('Password: ')),
+    email: resolvedEmail ?? (await ask.input({ message: 'Email:' })),
+    password:
+      resolvedPassword ?? (await ask.password({ message: 'Password:' })),
   };
 }
 
-const userFields: Array<[string, (user: User) => string]> = [
-  ['id', (user) => user.id ?? ''],
-  ['email', (user) => user.email ?? ''],
-  ['name', (user) => user.name ?? ''],
-];
+export interface LoginOpts {
+  email?: string;
+  password?: string;
+}
 
-export const login: Command = {
-  summary: 'Sign in and remember the session for this server',
-  usage: 'graphware login [--email <email>] [--password <password>]',
-  details:
-    'Falls back to $GRAPHWARE_EMAIL / $GRAPHWARE_PASSWORD, then to an interactive\nprompt. The token is written to auth.json (mode 0600) under the server URL.',
-  requiresAuth: false,
-  options: {
-    email: { type: 'string' },
-    password: { type: 'string' },
-  },
-  async run(ctx, args) {
-    const { email, password } = await credentials(
-      ctx,
-      str(args, 'email'),
-      str(args, 'password')
-    );
-    const user = await ctx.auth.login(email, password);
-    ctx.printer.note(`Signed in as ${user.email} on ${ctx.flags.url}`);
-    if (ctx.printer.json) ctx.printer.data(user);
-  },
-};
+export async function login(ctx: Ctx, opts: LoginOpts) {
+  const { email, password } = await credentials(ctx, opts.email, opts.password);
+  const user = await ctx.auth.login(email, password);
+  ctx.printer.note(`Signed in as ${user.email} on ${ctx.flags.url}`);
+  if (ctx.printer.json) ctx.printer.data(user);
+}
 
-export const logout: Command = {
-  summary: 'Clear the stored session for this server',
-  usage: 'graphware logout',
-  requiresAuth: false,
-  options: {},
-  async run(ctx) {
-    ctx.auth.logout();
-    await dropProfile(ctx.flags.url, ctx.env);
-    ctx.printer.note(`Signed out of ${ctx.flags.url}`);
-    if (ctx.printer.json) ctx.printer.data({ url: ctx.flags.url });
-  },
-};
+export async function logout(ctx: Ctx) {
+  ctx.auth.logout();
+  await dropProfile(ctx.flags.url, ctx.env);
+  ctx.printer.note(`Signed out of ${ctx.flags.url}`);
+  if (ctx.printer.json) ctx.printer.data({ url: ctx.flags.url });
+}
 
-export const whoami: Command = {
-  summary: 'Show the signed-in user',
-  usage: 'graphware whoami [--refresh]',
-  details:
-    '--refresh re-validates the token against the server instead of trusting the\nstored one, and rewrites it if the server issued a new one.',
-  requiresAuth: false,
-  options: {
-    refresh: { type: 'boolean' },
-  },
-  async run(ctx, args) {
-    const user = bool(args, 'refresh')
-      ? await ctx.auth.refreshAuth()
-      : ctx.auth.getCurrentUser();
+export async function whoami(ctx: Ctx, opts: { refresh?: boolean }) {
+  const user = opts.refresh
+    ? await ctx.auth.refreshAuth()
+    : ctx.auth.getCurrentUser();
 
-    if (!user) {
-      ctx.printer.note('Not signed in.');
-      if (ctx.printer.json) ctx.printer.data(null);
-      return 1;
-    }
+  if (!user) {
+    ctx.printer.note('Not signed in.');
+    if (ctx.printer.json) ctx.printer.data(null);
+    return 1;
+  }
 
-    ctx.printer.detail(user, userFields);
-  },
-};
+  ctx.printer.detail(user, userFields);
+}
 
-export const register: Command = {
-  summary: 'Create an account and sign in',
-  usage:
-    'graphware register --email <email> --password <pw> --password-confirm <pw> [--name <name>]',
-  details:
-    'Signup provisions a personal workspace server-side, so the new account can\ncreate graphs immediately.',
-  requiresAuth: false,
-  options: {
-    email: { type: 'string' },
-    password: { type: 'string' },
-    'password-confirm': { type: 'string' },
-    name: { type: 'string' },
-  },
-  async run(ctx, args) {
-    const email = str(args, 'email');
-    const password = str(args, 'password');
-    const passwordConfirm = str(args, 'password-confirm') ?? password;
-    if (!email || !password) {
-      throw new Error('--email and --password are required');
-    }
+export interface RegisterOpts {
+  email?: string;
+  password?: string;
+  passwordConfirm?: string;
+  name?: string;
+}
 
-    const data: RegisterData = {
-      email,
-      password,
-      passwordConfirm: passwordConfirm ?? password,
-      name: str(args, 'name') ?? email.split('@')[0],
-    } as RegisterData;
+export async function register(ctx: Ctx, opts: RegisterOpts) {
+  let { email, password } = opts;
+  if ((!email || !password) && canPrompt(ctx)) {
+    email = email ?? (await ask.input({ message: 'Email:' }));
+    password = password ?? (await ask.password({ message: 'Password:' }));
+  }
+  if (!email || !password) {
+    throw new Error('--email and --password are required');
+  }
 
-    const user = await ctx.auth.register(data);
-    ctx.printer.note(`Registered and signed in as ${user.email}`);
-    if (ctx.printer.json) ctx.printer.data(user);
-  },
-};
+  const data: RegisterData = {
+    email,
+    password,
+    passwordConfirm: opts.passwordConfirm ?? password,
+    name: opts.name ?? email.split('@')[0],
+  } as RegisterData;
 
-export const passwd: Command = {
-  summary: 'Change the signed-in user password',
-  usage: 'graphware passwd --old <pw> --new <pw> [--confirm <pw>]',
-  options: {
-    old: { type: 'string' },
-    new: { type: 'string' },
-    confirm: { type: 'string' },
-  },
-  async run(ctx, args) {
-    const oldPassword = str(args, 'old');
-    const password = str(args, 'new');
-    const confirm = str(args, 'confirm') ?? password;
-    if (!oldPassword || !password) {
-      throw new Error('--old and --new are required');
-    }
+  const user = await ctx.auth.register(data);
+  ctx.printer.note(`Registered and signed in as ${user.email}`);
+  if (ctx.printer.json) ctx.printer.data(user);
+}
 
-    const userId = ctx.userId;
-    if (!userId) throw new Error('Not signed in.');
+export interface PasswdOpts {
+  old?: string;
+  new?: string;
+  confirm?: string;
+}
 
-    const user = await ctx.auth.changePassword(
-      userId,
-      oldPassword,
-      password,
-      confirm ?? password
-    );
-    ctx.printer.note('Password changed. The old session is no longer valid.');
-    if (ctx.printer.json) ctx.printer.data(user);
-  },
-};
+export async function passwd(ctx: Ctx, opts: PasswdOpts) {
+  let oldPassword = opts.old;
+  let password = opts.new;
+  if ((!oldPassword || !password) && canPrompt(ctx)) {
+    oldPassword =
+      oldPassword ?? (await ask.password({ message: 'Current password:' }));
+    password = password ?? (await ask.password({ message: 'New password:' }));
+  }
+  if (!oldPassword || !password) {
+    throw new Error('--old and --new are required');
+  }
 
-export const profileSet: Command = {
-  summary: 'Update the signed-in user profile',
-  usage: 'graphware profile set [--name <name>]',
-  options: {
-    name: { type: 'string' },
-  },
-  async run(ctx, args) {
-    const name = str(args, 'name');
-    if (name === undefined) throw new Error('Nothing to change. Pass --name.');
+  const userId = ctx.userId;
+  if (!userId) throw new Error('Not signed in.');
 
-    const userId = ctx.userId;
-    if (!userId) throw new Error('Not signed in.');
+  const user = await ctx.auth.changePassword(
+    userId,
+    oldPassword,
+    password,
+    opts.confirm ?? password
+  );
+  ctx.printer.note('Password changed. The old session is no longer valid.');
+  if (ctx.printer.json) ctx.printer.data(user);
+}
 
-    const user = await ctx.auth.updateProfile(userId, {
-      name,
-    } as Partial<User>);
-    ctx.printer.detail(user, userFields);
-  },
-};
+export async function profileSet(ctx: Ctx, opts: { name?: string }) {
+  if (opts.name === undefined) {
+    throw new Error('Nothing to change. Pass --name.');
+  }
+
+  const userId = ctx.userId;
+  if (!userId) throw new Error('Not signed in.');
+
+  const user = await ctx.auth.updateProfile(userId, {
+    name: opts.name,
+  } as Partial<User>);
+  ctx.printer.detail(user, userFields);
+}
+
+export function registerAuth(program: Command, rt: Runtime): void {
+  program
+    .command('login')
+    .summary('sign in and remember the session for this server')
+    .description(
+      'Sign in and remember the session for this server.\n\n' +
+        'Credentials come from the flags, then $GRAPHWARE_EMAIL / $GRAPHWARE_PASSWORD,\n' +
+        'then an interactive prompt (TTY only — without one this fails immediately\n' +
+        'instead of hanging). The token is written to auth.json (mode 0600), keyed by\n' +
+        'server URL, so sessions against staging and production coexist.'
+    )
+    .option('--email <email>', 'account email')
+    .option('--password <password>', 'account password')
+    .action(rt.act(login, { requiresAuth: false }));
+
+  program
+    .command('logout')
+    .summary('clear the stored session for this server')
+    .description(
+      'Clear the stored session for this server (other servers keep theirs).'
+    )
+    .action(rt.act(logout, { requiresAuth: false }));
+
+  program
+    .command('whoami')
+    .summary('show the signed-in user')
+    .description(
+      'Show the signed-in user. Exits 1 when not signed in.\n\n' +
+        '--refresh re-validates the token against the server instead of trusting the\n' +
+        'stored one, and rewrites it if the server issued a new one.'
+    )
+    .option('--refresh', 're-validate the token against the server')
+    .action(rt.act(whoami, { requiresAuth: false }));
+
+  program
+    .command('register')
+    .summary('create an account and sign in')
+    .description(
+      'Create an account and sign in.\n\n' +
+        'Signup provisions a personal workspace server-side, so the new account can\n' +
+        'create graphs immediately. Missing credentials are prompted for on a TTY.'
+    )
+    .option('--email <email>', 'account email')
+    .option('--password <password>', 'account password (min 8 characters)')
+    .option(
+      '--password-confirm <password>',
+      'confirmation (defaults to --password)'
+    )
+    .option('--name <name>', 'display name (defaults to the email local part)')
+    .action(rt.act(register, { requiresAuth: false }));
+
+  program
+    .command('passwd')
+    .summary('change the signed-in user password')
+    .description(
+      'Change the signed-in user password. Missing passwords are prompted for on\n' +
+        'a TTY. The stored session is invalidated by the server afterwards.'
+    )
+    .option('--old <password>', 'current password')
+    .option('--new <password>', 'new password')
+    .option('--confirm <password>', 'confirmation (defaults to --new)')
+    .action(rt.act(passwd));
+
+  const profile = program
+    .command('profile')
+    .summary('your user profile')
+    .description('Read and update your user profile.');
+
+  profile
+    .command('set')
+    .summary('update the signed-in user profile')
+    .description('Update the signed-in user profile.')
+    .option('--name <name>', 'display name')
+    .action(rt.act(profileSet));
+}

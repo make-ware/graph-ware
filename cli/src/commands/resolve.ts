@@ -3,182 +3,155 @@
 // This is where the CLI earns its keep for an agent: `resolve` answers "what
 // does this graph actually become", including edges nobody stored, and `lint`
 // turns the same run into a pass/fail with an exit code.
+import { Option, type Command } from 'commander';
 import { loadImportTree, assembleResolvedGraph } from '@project/shared/graph';
 import { resolveGraphView } from '@project/shared/graph';
-import {
-  formatInstancePath,
-  type FlatNode,
-  type GraphView,
-} from '@project/shared';
-import { bool, int, str, type Command } from '../command.ts';
-import type { Printer } from '../output.ts';
+import type { Ctx } from '../context.ts';
+import { positiveInt } from '../options.ts';
+import { renderDiagnostics, renderEdges, renderTree } from '../render.ts';
 import { resolveGraph } from '../resolve-ref.ts';
+import type { Runtime } from '../runtime.ts';
 
-/** Instance id → the node, for edge rendering. */
-function index(nodes: readonly FlatNode[]) {
-  return new Map(nodes.map((node) => [node.instanceId, node]));
+export interface ResolveOpts {
+  format: string;
+  depth?: number;
+  maxNodes?: number;
+  structure?: boolean;
 }
 
-function renderTree(printer: Printer, view: GraphView) {
-  const byPath = new Map<string, FlatNode[]>();
-  for (const node of view.nodes) {
-    const key = node.instancePath.join('/');
-    const bucket = byPath.get(key);
-    if (bucket) bucket.push(node);
-    else byPath.set(key, [node]);
-  }
+export async function resolve(ctx: Ctx, opts: ResolveOpts, ref: string) {
+  const graph = await resolveGraph(ctx, ref);
+  const engineOpts = { maxDepth: opts.depth, maxNodes: opts.maxNodes };
 
-  for (const [key, nodes] of byPath) {
-    printer.line(key === '' ? 'root' : formatInstancePath(key.split('/')));
-    for (const node of nodes) {
-      const ports = node.ports
-        .map(
-          (port) =>
-            `${port.name}(${port.direction === 'output' ? '→' : '←'}${port.kind})`
-        )
-        .join(' ');
-      printer.line(`  ${node.name}  ${node.label}${ports ? '  ' + ports : ''}`);
-    }
-  }
-}
-
-function renderEdges(printer: Printer, view: GraphView) {
-  const nodes = index(view.nodes);
-
-  // Qualified by instance path, not bare node name. A child imported twice
-  // produces two nodes with the same name, and printing just the name turns
-  // "port_bank's fuse feeds the controller" into what looks like a self-loop.
-  const label = (instanceId: string) => {
-    const node = nodes.get(instanceId);
-    if (!node) return instanceId;
-    const prefix = node.instancePath.length
-      ? node.instancePath.join('/') + '/'
-      : '';
-    return prefix + node.name;
-  };
-
-  printer.line();
-  printer.line(`${view.edges.length} edge(s):`);
-  for (const edge of view.edges) {
-    const marker = edge.origin === 'pinned' ? ' [pinned]' : '';
-    printer.line(
-      `  ${label(edge.sourceInstanceId)}.${edge.sourcePortName} → ` +
-        `${label(edge.targetInstanceId)}.${edge.targetPortName}  [${edge.kind}]${marker}`
+  if (opts.structure) {
+    const data = await loadImportTree(ctx.pb, graph.id!, engineOpts);
+    const { graph: resolved, diagnostics } = assembleResolvedGraph(
+      graph.id!,
+      data,
+      engineOpts
     );
+    ctx.printer.data({ graph: resolved, diagnostics });
+    return;
   }
-}
 
-function renderDiagnostics(printer: Printer, view: GraphView) {
-  if (!view.diagnostics.length) return;
-  printer.line();
-  printer.line(`${view.diagnostics.length} diagnostic(s):`);
-  for (const diagnostic of view.diagnostics) {
-    const where = diagnostic.path?.length
-      ? ` (${diagnostic.path.join(' › ')})`
-      : '';
-    printer.line(
-      `  ${diagnostic.level.padEnd(7)} ${diagnostic.code}  ${diagnostic.message}${where}`
-    );
+  const view = await resolveGraphView(ctx.pb, graph.id!, engineOpts);
+
+  if (ctx.printer.json) {
+    ctx.printer.data(view);
+    return;
   }
-}
 
-export const resolve: Command = {
-  summary: 'Resolve a graph to flat nodes, derived edges and diagnostics',
-  usage:
-    'graphware resolve <graph> [--format tree|nodes|edges|all] [--depth <n>] [--max-nodes <n>] [--structure]',
-  details:
-    'Edges are computed from port compatibility at read time; nothing about them\nis stored. --structure skips the engine and shows only the import tree.',
-  positionals: [{ name: 'graph', required: true }],
-  options: {
-    format: { type: 'string' },
-    depth: { type: 'string' },
-    'max-nodes': { type: 'string' },
-    structure: { type: 'boolean' },
-  },
-  async run(ctx, args) {
-    const graph = await resolveGraph(ctx, args.positionals[0]);
-    const maxDepth = int(args, 'depth');
-    const maxNodes = int(args, 'max-nodes');
-
-    if (bool(args, 'structure')) {
-      const data = await loadImportTree(ctx.pb, graph.id!, {
-        maxDepth,
-        maxNodes,
-      });
-      const { graph: resolved, diagnostics } = assembleResolvedGraph(
-        graph.id!,
-        data,
-        { maxDepth, maxNodes }
-      );
-      ctx.printer.data({ graph: resolved, diagnostics });
-      return;
-    }
-
-    const view = await resolveGraphView(ctx.pb, graph.id!, {
-      maxDepth,
-      maxNodes,
-    });
-
-    if (ctx.printer.json) {
-      ctx.printer.data(view);
-      return;
-    }
-
-    const format = str(args, 'format') ?? 'all';
-    if (format === 'nodes' || format === 'tree' || format === 'all') {
-      renderTree(ctx.printer, view);
-    }
-    if (format === 'edges' || format === 'all') {
-      renderEdges(ctx.printer, view);
-    }
-    if (format === 'all') {
-      renderDiagnostics(ctx.printer, view);
-    }
-  },
-};
-
-export const lint: Command = {
-  summary: 'Resolve a graph and report its diagnostics',
-  usage: 'graphware lint <graph> [--strict] [--depth <n>] [--max-nodes <n>]',
-  details:
-    'Exits 1 when any diagnostic is an error — an unconnected required input, an\nunknown port kind. --strict makes warnings fail too, which is the mode worth\nputting in CI.',
-  positionals: [{ name: 'graph', required: true }],
-  options: {
-    strict: { type: 'boolean' },
-    depth: { type: 'string' },
-    'max-nodes': { type: 'string' },
-  },
-  async run(ctx, args) {
-    const graph = await resolveGraph(ctx, args.positionals[0]);
-    const view = await resolveGraphView(ctx.pb, graph.id!, {
-      maxDepth: int(args, 'depth'),
-      maxNodes: int(args, 'max-nodes'),
-    });
-
-    const errors = view.diagnostics.filter((d) => d.level === 'error');
-    const strict = bool(args, 'strict');
-    const failed = strict ? view.diagnostics.length > 0 : errors.length > 0;
-
-    if (ctx.printer.json) {
-      ctx.printer.data({
-        graph: graph.id,
-        uid: graph.uid,
-        diagnostics: view.diagnostics,
-        errorCount: errors.length,
-        warningCount: view.diagnostics.length - errors.length,
-        ok: !failed,
-      });
-      return failed ? 1 : 0;
-    }
-
-    if (!view.diagnostics.length) {
-      ctx.printer.note(
-        `${graph.uid}: clean — ${view.nodes.length} node(s), ${view.edges.length} edge(s).`
-      );
-      return 0;
-    }
-
+  const { format } = opts;
+  if (format === 'nodes' || format === 'tree' || format === 'all') {
+    renderTree(ctx.printer, view);
+  }
+  if (format === 'edges' || format === 'all') {
+    renderEdges(ctx.printer, view);
+  }
+  if (format === 'diagnostics' || format === 'all') {
     renderDiagnostics(ctx.printer, view);
+    if (format === 'diagnostics' && !view.diagnostics.length) {
+      ctx.printer.note('No diagnostics.');
+    }
+  }
+}
+
+export interface LintOpts {
+  strict?: boolean;
+  depth?: number;
+  maxNodes?: number;
+}
+
+export async function lint(ctx: Ctx, opts: LintOpts, ref: string) {
+  const graph = await resolveGraph(ctx, ref);
+  const view = await resolveGraphView(ctx.pb, graph.id!, {
+    maxDepth: opts.depth,
+    maxNodes: opts.maxNodes,
+  });
+
+  const errors = view.diagnostics.filter((d) => d.level === 'error');
+  const failed = opts.strict ? view.diagnostics.length > 0 : errors.length > 0;
+
+  if (ctx.printer.json) {
+    ctx.printer.data({
+      graph: graph.id,
+      uid: graph.uid,
+      diagnostics: view.diagnostics,
+      errorCount: errors.length,
+      warningCount: view.diagnostics.length - errors.length,
+      ok: !failed,
+    });
     return failed ? 1 : 0;
-  },
-};
+  }
+
+  if (!view.diagnostics.length) {
+    ctx.printer.note(
+      `${graph.uid}: clean — ${view.nodes.length} node(s), ${view.edges.length} edge(s).`
+    );
+    return 0;
+  }
+
+  renderDiagnostics(ctx.printer, view);
+  return failed ? 1 : 0;
+}
+
+/** Shared by `resolve` and `lint`: the engine's own guard rails. */
+function addEngineOptions(command: Command): Command {
+  return command
+    .option(
+      '--depth <n>',
+      'stop resolving imports below this depth',
+      positiveInt
+    )
+    .option(
+      '--max-nodes <n>',
+      'stop flattening after this many nodes',
+      positiveInt
+    );
+}
+
+export function registerResolve(program: Command, rt: Runtime): void {
+  addEngineOptions(
+    program
+      .command('resolve')
+      .summary('resolve a graph: flat nodes, derived edges, diagnostics')
+      .description(
+        'Resolve a graph to flat nodes, derived edges and diagnostics.\n\n' +
+          'Edges are computed from port compatibility at read time; nothing about\n' +
+          'them is stored. Nodes are addressed by instance path — the chain of\n' +
+          'import aliases — so a child imported twice shows up as two distinct\n' +
+          'instances. Those paths are what `override add` endpoints take.\n\n' +
+          '--structure skips the engine and shows only the import tree.'
+      )
+      .argument('<graph>', 'the graph (id or uid)')
+      .addOption(
+        new Option('--format <what>', 'which sections to print (human mode)')
+          .choices(['tree', 'nodes', 'edges', 'diagnostics', 'all'])
+          .default('all')
+      )
+      .option('--structure', 'show the import tree only, without the engine')
+  )
+    .addHelpText(
+      'after',
+      `
+Examples:
+  graphware resolve LightSwitch
+  graphware resolve PowerSystem --format edges
+  graphware resolve PowerSystem --json | jq '.diagnostics'`
+    )
+    .action(rt.act(resolve));
+
+  addEngineOptions(
+    program
+      .command('lint')
+      .summary('resolve a graph and report its diagnostics')
+      .description(
+        'Resolve a graph and report its diagnostics.\n\n' +
+          'Exits 1 when any diagnostic is an error — an unconnected required\n' +
+          'input, an unknown port kind. --strict makes warnings fail too, which is\n' +
+          'the mode worth putting in CI.'
+      )
+      .argument('<graph>', 'the graph (id or uid)')
+      .option('--strict', 'fail on warnings as well as errors')
+  ).action(rt.act(lint));
+}

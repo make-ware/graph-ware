@@ -7,6 +7,7 @@
 //
 // Human mode prints the column projection; `--json` prints the *raw* records.
 // Columns are a reading affordance, and an agent wants full fidelity.
+import type { ListResult } from 'pocketbase';
 import type { ParsedAuthError } from '@project/shared';
 
 export interface Column<T> {
@@ -46,13 +47,34 @@ export class Printer {
    * A list of records. `columns` is the human projection; `--json` ignores it
    * and emits the records whole.
    *
+   * A paged `ListResult` keeps its pagination envelope: under `--json` the
+   * data is `{page, perPage, totalItems, totalPages, items}` — an agent that
+   * got page 1 of 4 must be able to see there are three more — and in human
+   * mode a footer says the same when anything was left unfetched. A plain
+   * array (a client-side join with no server paging) emits bare rows.
+   *
    * `empty` is the human-mode message for a zero-row result — "No graphs."
    * reads better than a bare header with nothing under it.
    */
-  list<T>(rows: readonly T[], columns: Column<T>[], empty = 'Nothing found.') {
-    if (this.json) return this.data(rows);
+  list<T>(
+    result: readonly T[] | ListResult<T>,
+    columns: Column<T>[],
+    empty = 'Nothing found.'
+  ) {
+    const paged = !Array.isArray(result) ? (result as ListResult<T>) : null;
+    const rows = paged ? paged.items : (result as readonly T[]);
+
+    if (this.json) return this.data(paged ?? rows);
     if (rows.length === 0) return this.out(this.dim(empty));
     this.out(this.table(rows, columns));
+
+    if (paged && paged.totalPages > 1) {
+      this.out(
+        this.dim(
+          `page ${paged.page} of ${paged.totalPages} (${paged.totalItems} total) — --page <n> or --all for the rest`
+        )
+      );
+    }
   }
 
   /** A single record, as aligned `key: value` lines. */

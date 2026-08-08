@@ -2,19 +2,16 @@
 //
 // The Ctx is faked rather than driven through a mock PocketBase: what these
 // tests are about is *which mutator calls a command makes*, and going through
-// the SDK would only add a layer to assert around.
+// the SDK would only add a layer to assert around. Handlers are called
+// directly — `(ctx, opts, ...positionals)` — exactly as Runtime.act invokes
+// them after commander has parsed.
 import { describe, expect, it, vi } from 'vitest';
 import type { Ctx } from '../context.ts';
-import type { Command, ParsedArgs } from '../command.ts';
 import { Printer } from '../output.ts';
 import * as graph from '../commands/graph.ts';
 import * as importCmd from '../commands/import.ts';
 import * as node from '../commands/node.ts';
 import * as version from '../commands/version.ts';
-
-function args(positionals: string[], values: ParsedArgs['values'] = {}) {
-  return { positionals, values } as ParsedArgs;
-}
 
 function harness(overrides: Record<string, unknown> = {}) {
   const out: string[] = [];
@@ -41,7 +38,17 @@ function harness(overrides: Record<string, unknown> = {}) {
   return { ctx, out, err };
 }
 
-const run = (command: Command, ctx: Ctx, a: ParsedArgs) => command.run(ctx, a);
+/** A ListResult the way BaseMutator.getList returns one. */
+function page<T>(items: T[], extra: Partial<Record<string, number>> = {}) {
+  return {
+    page: 1,
+    perPage: 100,
+    totalItems: items.length,
+    totalPages: 1,
+    items,
+    ...extra,
+  };
+}
 
 const SAMPLE_GRAPH = {
   id: 'g1',
@@ -52,31 +59,71 @@ const SAMPLE_GRAPH = {
 };
 
 describe('graph ls', () => {
-  it('lists the active workspace by default', async () => {
-    const listForWorkspace = vi.fn(async () => ({ items: [SAMPLE_GRAPH] }));
-    const { ctx, out } = harness({
-      graphs: { listForWorkspace, listPublic: vi.fn(), listMine: vi.fn() },
-    });
+  it('scopes to the active workspace by default', async () => {
+    const getList = vi.fn(async () => page([SAMPLE_GRAPH]));
+    const { ctx, out } = harness({ graphs: { getList } });
 
-    await run(graph.ls, ctx, args([]));
+    await graph.ls(ctx, {});
 
-    expect(listForWorkspace).toHaveBeenCalledWith('ws1');
+    expect(getList).toHaveBeenCalledWith(
+      1,
+      100,
+      ['workspace = "ws1"'],
+      undefined,
+      undefined
+    );
     expect(out[0]).toContain('LightSwitch');
   });
 
-  // searchPublic pre-filters tags with `~`, which matches substrings — the
-  // command has to narrow to exact matches or "power" returns "powertrain".
+  it('ANDs --filter onto the scope instead of replacing it', async () => {
+    const getList = vi.fn(async () => page([SAMPLE_GRAPH]));
+    const { ctx } = harness({ graphs: { getList } });
+
+    await graph.ls(ctx, { filter: 'label ~ "light"', sort: '-updated' });
+
+    expect(getList).toHaveBeenCalledWith(
+      1,
+      100,
+      ['workspace = "ws1"', 'label ~ "light"'],
+      '-updated',
+      undefined
+    );
+  });
+
+  it('passes --page and --per-page through to the server', async () => {
+    const getList = vi.fn(async () => page([]));
+    const { ctx } = harness({ graphs: { getList } });
+
+    await graph.ls(ctx, { page: 3, perPage: 25 });
+
+    expect(getList).toHaveBeenCalledWith(
+      3,
+      25,
+      expect.anything(),
+      undefined,
+      undefined
+    );
+  });
+
+  // The tag scope pre-filters with `~`, which matches substrings — the command
+  // has to narrow to exact matches or "power" returns "powertrain".
   it('narrows tag matches to exact after the server prefilter', async () => {
-    const searchPublic = vi.fn(async () => ({
-      items: [
+    const getList = vi.fn(async () =>
+      page([
         { ...SAMPLE_GRAPH, uid: 'Exact', tags: ['power'] },
         { ...SAMPLE_GRAPH, uid: 'Substring', tags: ['powertrain'] },
-      ],
-    }));
-    const { ctx, out } = harness({ graphs: { searchPublic } });
+      ])
+    );
+    const { ctx, out } = harness({ graphs: { getList } });
 
-    await run(graph.ls, ctx, args([], { tag: ['power'] }));
+    await graph.ls(ctx, { tag: ['power'] });
 
+    const [, , filter] = getList.mock.calls[0] as unknown as [
+      number,
+      number,
+      string[],
+    ];
+    expect(filter[0]).toBe('visibility = "public"');
     expect(out[0]).toContain('Exact');
     expect(out[0]).not.toContain('Substring');
   });
@@ -93,9 +140,7 @@ describe('graph rm', () => {
       },
     });
 
-    await expect(run(graph.rm, ctx, args(['g1']))).rejects.toThrow(
-      /imported by 3/
-    );
+    await expect(graph.rm(ctx, {}, 'g1')).rejects.toThrow(/imported by 3/);
     expect(del).not.toHaveBeenCalled();
   });
 
@@ -109,7 +154,7 @@ describe('graph rm', () => {
       },
     });
 
-    await run(graph.rm, ctx, args(['g1'], { force: true }));
+    await graph.rm(ctx, { force: true }, 'g1');
     expect(del).toHaveBeenCalledWith('g1');
   });
 });
@@ -158,7 +203,7 @@ describe('import alias', () => {
   it('renames the import and rewrites both endpoints beneath it', async () => {
     const { ctx, importUpdate, overrideUpdate } = aliasHarness();
 
-    await run(importCmd.alias, ctx, args(['i1', 'new']));
+    await importCmd.alias(ctx, {}, 'i1', 'new');
 
     expect(importUpdate).toHaveBeenCalledWith('i1', { alias: 'new' });
     expect(overrideUpdate).toHaveBeenCalledTimes(2);
@@ -174,14 +219,14 @@ describe('import alias', () => {
 
   it('leaves overrides that do not sit under the alias alone', async () => {
     const { ctx, overrideUpdate } = aliasHarness();
-    await run(importCmd.alias, ctx, args(['i1', 'new']));
+    await importCmd.alias(ctx, {}, 'i1', 'new');
     expect(overrideUpdate.mock.calls.map(([id]) => id)).not.toContain('o3');
   });
 
   it('writes nothing under --dry-run', async () => {
     const { ctx, out, importUpdate, overrideUpdate } = aliasHarness();
 
-    await run(importCmd.alias, ctx, args(['i1', 'new'], { 'dry-run': true }));
+    await importCmd.alias(ctx, { dryRun: true }, 'i1', 'new');
 
     expect(importUpdate).not.toHaveBeenCalled();
     expect(overrideUpdate).not.toHaveBeenCalled();
@@ -192,15 +237,15 @@ describe('import alias', () => {
     const { ctx, err, overrideUpdate } = aliasHarness();
     overrideUpdate.mockRejectedValueOnce(new Error('permission denied'));
 
-    await expect(
-      run(importCmd.alias, ctx, args(['i1', 'new']))
-    ).rejects.toThrow('permission denied');
+    await expect(importCmd.alias(ctx, {}, 'i1', 'new')).rejects.toThrow(
+      'permission denied'
+    );
     expect(err.join('\n')).toContain('only rewrote 0 of 2');
   });
 
   it('does nothing when the alias is unchanged', async () => {
     const { ctx, importUpdate } = aliasHarness();
-    await run(importCmd.alias, ctx, args(['i1', 'old']));
+    await importCmd.alias(ctx, {}, 'i1', 'old');
     expect(importUpdate).not.toHaveBeenCalled();
   });
 });
@@ -224,7 +269,7 @@ describe('import move', () => {
       },
     });
 
-    await run(importCmd.move, ctx, args(['i2'], { up: true }));
+    await importCmd.move(ctx, { up: true }, 'i2');
 
     expect(update).toHaveBeenCalledWith('i2', { order: 0 });
     expect(update).toHaveBeenCalledWith('i1', { order: 1 });
@@ -238,7 +283,7 @@ describe('import move', () => {
       },
     });
     await expect(
-      run(importCmd.move, ctx, args(['i1'], { up: true, down: true }))
+      importCmd.move(ctx, { up: true, down: true }, 'i1')
     ).rejects.toThrow(/exactly one/);
   });
 });
@@ -252,7 +297,7 @@ describe('node set', () => {
       nodes: { getById: vi.fn(async () => ({ id: 'n1' })), update },
     });
 
-    await run(node.set, ctx, args(['n1'], { 'clear-position': true }));
+    await node.set(ctx, { clearPosition: true }, 'n1');
 
     expect(update).toHaveBeenCalledWith('n1', { position: null });
   });
@@ -263,7 +308,7 @@ describe('node set', () => {
       nodes: { getById: vi.fn(async () => ({ id: 'n1' })), update },
     });
 
-    await run(node.set, ctx, args(['n1'], { position: '10,-20' }));
+    await node.set(ctx, { position: '10,-20' }, 'n1');
 
     expect(update).toHaveBeenCalledWith('n1', { position: { x: 10, y: -20 } });
   });
@@ -274,9 +319,7 @@ describe('node set', () => {
       nodes: { getById: vi.fn(async () => ({ id: 'n1' })), update },
     });
 
-    await expect(run(node.set, ctx, args(['n1']))).rejects.toThrow(
-      /Nothing to change/
-    );
+    await expect(node.set(ctx, {}, 'n1')).rejects.toThrow(/Nothing to change/);
     expect(update).not.toHaveBeenCalled();
   });
 });
@@ -296,7 +339,7 @@ describe('version publish', () => {
       },
     });
 
-    await run(version.publish, ctx, args(['g1']));
+    await version.publish(ctx, {}, 'g1');
     expect(out.join('\n')).toContain('nothing published');
   });
 
@@ -311,7 +354,7 @@ describe('version publish', () => {
       },
     });
 
-    await run(version.publish, ctx, args(['g1']));
+    await version.publish(ctx, {}, 'g1');
     expect(out.join('\n')).toContain('Published v4');
   });
 });

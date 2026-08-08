@@ -2,8 +2,11 @@
 //
 // Port kinds are what auto-connect matches on, so being able to read the
 // registry is how you work out why two ports did not connect.
+import type { Command } from 'commander';
 import type { PortKind } from '@project/shared';
-import { bool, type Command } from '../command.ts';
+import type { Ctx } from '../context.ts';
+import { addListOptions, fetchList, type ListOpts } from '../listing.ts';
+import type { Runtime } from '../runtime.ts';
 
 const columns = [
   { header: 'KEY', get: (k: PortKind) => k.key },
@@ -19,29 +22,46 @@ const columns = [
   },
 ];
 
-export const ls: Command = {
-  summary: 'List port kinds',
-  usage: 'graphware portkind ls [--global]',
-  details:
-    'Defaults to the active workspace kinds. --global lists the ones shared\nacross every workspace.',
-  options: {
-    global: { type: 'boolean' },
-  },
-  async run(ctx, args) {
-    const result = bool(args, 'global')
-      ? await ctx.portKinds.listGlobal()
-      : await ctx.portKinds.listForWorkspace(await ctx.workspaceId());
-    ctx.printer.list(result.items, columns, 'No port kinds.');
-  },
-};
+export async function ls(ctx: Ctx, opts: ListOpts & { global?: boolean }) {
+  const scope = opts.global
+    ? 'workspace = ""'
+    : `workspace = "${await ctx.workspaceId()}"`;
+  const result = await fetchList(ctx.portKinds, scope, opts);
+  ctx.printer.list(result, columns, 'No port kinds.');
+}
 
-export const registry: Command = {
-  summary: 'Show the resolved registry the engine matches against',
-  usage: 'graphware portkind registry',
-  details:
-    'Built-in defaults merged with the visible rows — this is exactly what\nauto-connect consults, which makes it the thing to check when an edge that\nshould exist does not.',
-  options: {},
-  async run(ctx) {
-    ctx.printer.data(await ctx.portKinds.registry());
-  },
-};
+export async function registry(ctx: Ctx) {
+  ctx.printer.data(await ctx.portKinds.registry());
+}
+
+export function registerPortkind(program: Command, rt: Runtime): void {
+  const portkind = program
+    .command('portkind')
+    .summary('port kinds — what auto-connect matches on')
+    .description(
+      'Port kinds — the vocabulary auto-connect matches on.\n\n' +
+        'An output port connects to input ports of the same (or a declared\n' +
+        'compatible) kind. Workspace rows shadow global rows of the same key.'
+    );
+
+  addListOptions(
+    portkind
+      .command('ls')
+      .summary('list port kinds')
+      .description(
+        'List port kinds. Defaults to the active workspace kinds; --global lists\n' +
+          'the ones shared across every workspace.'
+      )
+      .option('--global', 'list the global vocabulary instead')
+  ).action(rt.act(ls));
+
+  portkind
+    .command('registry')
+    .summary('show the resolved registry the engine matches against')
+    .description(
+      'Show the resolved registry: built-in defaults merged with the visible\n' +
+        'rows. This is exactly what auto-connect consults, which makes it the\n' +
+        'thing to check when an edge that should exist does not.'
+    )
+    .action(rt.act(registry));
+}

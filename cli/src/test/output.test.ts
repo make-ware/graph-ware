@@ -65,6 +65,35 @@ describe('human output', () => {
   });
 });
 
+describe('paged lists', () => {
+  const paged = {
+    page: 2,
+    perPage: 2,
+    totalItems: 5,
+    totalPages: 3,
+    items: [{ uid: 'A', label: 'a' }],
+  };
+
+  it('tells a human when pages were left unfetched', () => {
+    const { printer, out } = capture(false);
+    printer.list(paged, columns);
+    expect(out.join('\n')).toContain('page 2 of 3');
+  });
+
+  it('stays quiet when everything fit on one page', () => {
+    const { printer, out } = capture(false);
+    printer.list({ ...paged, page: 1, totalPages: 1 }, columns);
+    expect(out.join('\n')).not.toContain('page 1 of 1');
+  });
+
+  // An agent that got page 1 of 4 must be able to see there are three more.
+  it('keeps the pagination envelope under --json', () => {
+    const { printer, out } = capture(true);
+    printer.list(paged, columns);
+    expect(JSON.parse(out[0])).toEqual({ ok: true, data: paged });
+  });
+});
+
 describe('--json output', () => {
   it('emits the raw records, not the column projection', () => {
     const { printer, out } = capture(true);

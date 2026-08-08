@@ -33,7 +33,15 @@ export function createPocketBaseClient(
     // Add timeout to prevent hanging requests
     if (!requestOptions.signal && options.requestTimeout) {
       const controller = new AbortController();
-      setTimeout(() => controller.abort(), options.requestTimeout);
+      const timer = setTimeout(
+        () => controller.abort(),
+        options.requestTimeout
+      );
+      // In Node the armed timer would keep the process alive for the full
+      // timeout after every request — a one-shot CLI would linger 30s after
+      // printing its result. In the browser setTimeout returns a number and
+      // there is nothing to release.
+      if (typeof timer === 'object' && 'unref' in timer) timer.unref();
       requestOptions.signal = controller.signal;
     }
 

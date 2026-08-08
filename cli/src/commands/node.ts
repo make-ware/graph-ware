@@ -4,14 +4,19 @@
 // the CLI takes them as JSON and runs them through the same zod schemas the
 // editor forms use — a bad port shape fails here with a field path rather than
 // as a 400 from the server.
+import type { Command } from 'commander';
 import {
   AttributeListSchema,
   NodePositionSchema,
   PortListSchema,
   type GraphNode,
 } from '@project/shared';
-import { bool, str, type Command } from '../command.ts';
+import type { Ctx } from '../context.ts';
+import { addListOptions, fetchList, type ListOpts } from '../listing.ts';
+import { ask, canPrompt } from '../prompt.ts';
+import { addCheckOption, checkGraph, withDiagnostics } from '../render.ts';
 import { readJsonArg, resolveGraph } from '../resolve-ref.ts';
+import type { Runtime } from '../runtime.ts';
 
 const columns = [
   { header: 'NAME', get: (n: GraphNode) => n.name },
@@ -40,136 +45,226 @@ function parsePosition(raw: string) {
   return NodePositionSchema.parse(value);
 }
 
-export const ls: Command = {
-  summary: 'List the nodes of a graph',
-  usage: 'graphware node ls <graph>',
-  positionals: [{ name: 'graph', required: true }],
-  options: {},
-  async run(ctx, args) {
-    const graph = await resolveGraph(ctx, args.positionals[0]);
-    const result = await ctx.nodes.listForGraph(graph.id!);
-    ctx.printer.list(result.items, columns, 'No nodes.');
-  },
-};
+export async function ls(ctx: Ctx, opts: ListOpts, ref: string) {
+  const graph = await resolveGraph(ctx, ref);
+  const result = await fetchList(ctx.nodes, `graph = "${graph.id}"`, opts);
+  ctx.printer.list(result, columns, 'No nodes.');
+}
 
-export const show: Command = {
-  summary: 'Show one node with its full ports and attributes',
-  usage: 'graphware node show <nodeId>',
-  positionals: [{ name: 'nodeId', required: true }],
-  options: {},
-  async run(ctx, args) {
-    const node = await ctx.nodes.getById(args.positionals[0]);
-    if (!node) throw new Error(`No node "${args.positionals[0]}".`);
-    // Ports and attributes are structured; a table would flatten away exactly
-    // the part a caller asked `show` for.
-    ctx.printer.data(node);
-  },
-};
+export async function show(ctx: Ctx, _opts: unknown, id: string) {
+  const node = await ctx.nodes.getById(id);
+  if (!node) throw new Error(`No node "${id}".`);
+  // Ports and attributes are structured; a table would flatten away exactly
+  // the part a caller asked `show` for.
+  ctx.printer.data(node);
+}
 
-export const add: Command = {
-  summary: 'Add a node to a graph',
-  usage:
-    'graphware node add <graph> --name <machine_name> --label <label> [--attributes <json|@file>] [--ports <json|@file>] [--position x,y]',
-  positionals: [{ name: 'graph', required: true }],
-  options: {
-    name: { type: 'string' },
-    label: { type: 'string' },
-    attributes: { type: 'string' },
-    ports: { type: 'string' },
-    position: { type: 'string' },
-  },
-  async run(ctx, args) {
-    const graph = await resolveGraph(ctx, args.positionals[0]);
-    const name = str(args, 'name');
-    const label = str(args, 'label');
-    if (!name || !label) throw new Error('--name and --label are required');
+export interface NodeAddOpts {
+  name?: string;
+  label?: string;
+  attributes?: string;
+  ports?: string;
+  position?: string;
+  check?: boolean;
+}
 
-    const attributesRaw = str(args, 'attributes');
-    const portsRaw = str(args, 'ports');
-    const positionRaw = str(args, 'position');
+export async function add(ctx: Ctx, opts: NodeAddOpts, ref: string) {
+  const graph = await resolveGraph(ctx, ref);
 
-    const node = await ctx.nodes.create({
-      graph: graph.id!,
-      name,
-      label,
-      attributes: attributesRaw
-        ? AttributeListSchema.parse(await readJsonArg(attributesRaw))
-        : undefined,
-      ports: portsRaw
-        ? PortListSchema.parse(await readJsonArg(portsRaw))
-        : undefined,
-      position: positionRaw ? parsePosition(positionRaw) : undefined,
+  let { name, label } = opts;
+  if ((!name || !label) && canPrompt(ctx)) {
+    label = label ?? (await ask.input({ message: 'Label (display name):' }));
+    name =
+      name ??
+      (await ask.input({
+        message: 'Machine name:',
+        default: label.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+      }));
+  }
+  if (!name || !label) throw new Error('--name and --label are required');
+
+  const node = await ctx.nodes.create({
+    graph: graph.id!,
+    name,
+    label,
+    attributes: opts.attributes
+      ? AttributeListSchema.parse(await readJsonArg(opts.attributes))
+      : undefined,
+    ports: opts.ports
+      ? PortListSchema.parse(await readJsonArg(opts.ports))
+      : undefined,
+    position: opts.position ? parsePosition(opts.position) : undefined,
+  });
+
+  ctx.printer.note(`Added ${node.name} (${node.id}) to ${graph.uid}`);
+  const diagnostics = opts.check ? await checkGraph(ctx, graph.id!) : undefined;
+  if (ctx.printer.json) ctx.printer.data(withDiagnostics(node, diagnostics));
+}
+
+export interface NodeSetOpts {
+  name?: string;
+  label?: string;
+  attributes?: string;
+  ports?: string;
+  position?: string;
+  clearPosition?: boolean;
+  check?: boolean;
+}
+
+export async function set(ctx: Ctx, opts: NodeSetOpts, id: string) {
+  const existing = await ctx.nodes.getById(id);
+  if (!existing) throw new Error(`No node "${id}".`);
+
+  const patch: Partial<GraphNode> = {};
+  if (opts.name !== undefined) patch.name = opts.name;
+  if (opts.label !== undefined) patch.label = opts.label;
+
+  if (opts.attributes !== undefined) {
+    patch.attributes = AttributeListSchema.parse(
+      await readJsonArg(opts.attributes)
+    );
+  }
+
+  if (opts.ports !== undefined) {
+    patch.ports = PortListSchema.parse(await readJsonArg(opts.ports));
+  }
+
+  if (opts.clearPosition) {
+    // Explicitly null, not undefined: an undefined key is dropped from the
+    // request body and the stored position would survive untouched.
+    patch.position = null as unknown as GraphNode['position'];
+  } else if (opts.position !== undefined) {
+    patch.position = parsePosition(opts.position);
+  }
+
+  if (Object.keys(patch).length === 0) {
+    throw new Error('Nothing to change. Pass at least one field flag.');
+  }
+
+  const node = await ctx.nodes.update(id, patch);
+  ctx.printer.note(`Updated ${node.name}`);
+  const diagnostics = opts.check
+    ? await checkGraph(ctx, existing.graph)
+    : undefined;
+  if (ctx.printer.json) ctx.printer.data(withDiagnostics(node, diagnostics));
+}
+
+export interface NodeRmOpts {
+  yes?: boolean;
+  check?: boolean;
+}
+
+export async function rm(ctx: Ctx, opts: NodeRmOpts, id: string) {
+  const existing = await ctx.nodes.getById(id);
+  if (!existing) throw new Error(`No node "${id}".`);
+
+  if (!opts.yes && canPrompt(ctx)) {
+    const confirmed = await ask.confirm({
+      message: `Delete node ${existing.name}?`,
+      default: false,
     });
-
-    ctx.printer.note(`Added ${node.name} (${node.id}) to ${graph.uid}`);
-    if (ctx.printer.json) ctx.printer.data(node);
-  },
-};
-
-export const set: Command = {
-  summary: 'Update a node',
-  usage:
-    'graphware node set <nodeId> [--name <name>] [--label <label>] [--attributes <json|@file>] [--ports <json|@file>] [--position x,y | --clear-position]',
-  details:
-    '--clear-position drops the manual layout override so the node goes back to\nbeing placed by dagre.',
-  positionals: [{ name: 'nodeId', required: true }],
-  options: {
-    name: { type: 'string' },
-    label: { type: 'string' },
-    attributes: { type: 'string' },
-    ports: { type: 'string' },
-    position: { type: 'string' },
-    'clear-position': { type: 'boolean' },
-  },
-  async run(ctx, args) {
-    const id = args.positionals[0];
-    const existing = await ctx.nodes.getById(id);
-    if (!existing) throw new Error(`No node "${id}".`);
-
-    const patch: Partial<GraphNode> = {};
-    if (str(args, 'name') !== undefined) patch.name = str(args, 'name');
-    if (str(args, 'label') !== undefined) patch.label = str(args, 'label');
-
-    const attributesRaw = str(args, 'attributes');
-    if (attributesRaw !== undefined) {
-      patch.attributes = AttributeListSchema.parse(
-        await readJsonArg(attributesRaw)
-      );
+    if (!confirmed) {
+      ctx.printer.note('Cancelled.');
+      return 1;
     }
+  }
 
-    const portsRaw = str(args, 'ports');
-    if (portsRaw !== undefined) {
-      patch.ports = PortListSchema.parse(await readJsonArg(portsRaw));
-    }
+  await ctx.nodes.delete(id);
+  ctx.printer.note(`Deleted node ${existing.name} (${id})`);
+  const diagnostics = opts.check
+    ? await checkGraph(ctx, existing.graph)
+    : undefined;
+  if (ctx.printer.json) ctx.printer.data(withDiagnostics({ id }, diagnostics));
+}
 
-    const positionRaw = str(args, 'position');
-    if (bool(args, 'clear-position')) {
-      // Explicitly null, not undefined: an undefined key is dropped from the
-      // request body and the stored position would survive untouched.
-      patch.position = null as unknown as GraphNode['position'];
-    } else if (positionRaw !== undefined) {
-      patch.position = parsePosition(positionRaw);
-    }
+const PORTS_EXAMPLE = `
+The JSON shapes (also accepted as @file.json):
+  --ports      '[{"name":"out","direction":"output","kind":"power","relationship":"many"}]'
+  --attributes '[{"name":"voltage","value":12}]'
+  --position   '120,80'
 
-    if (Object.keys(patch).length === 0) {
-      throw new Error('Nothing to change. Pass at least one field flag.');
-    }
+Example — add a fuse and see what it connects to:
+  graphware node add PowerSystem --name fuse --label Fuse \\
+    --ports '[{"name":"in","direction":"input","kind":"power","relationship":"one"},
+              {"name":"out","direction":"output","kind":"power","relationship":"many"}]' \\
+    --check`;
 
-    const node = await ctx.nodes.update(id, patch);
-    ctx.printer.note(`Updated ${node.name}`);
-    if (ctx.printer.json) ctx.printer.data(node);
-  },
-};
+export function registerNode(program: Command, rt: Runtime): void {
+  const node = program
+    .command('node')
+    .summary('nodes within a graph')
+    .description(
+      'Nodes within a graph.\n\n' +
+        'A node carries typed ports and attributes as validated JSON. Edges are\n' +
+        'never written: they are derived from port kind compatibility when the graph\n' +
+        'is resolved — so after changing ports or attributes, `--check` (or\n' +
+        '`graphware resolve`) is how you see what the change actually connected.'
+    );
 
-export const rm: Command = {
-  summary: 'Delete a node',
-  usage: 'graphware node rm <nodeId>',
-  positionals: [{ name: 'nodeId', required: true }],
-  options: {},
-  async run(ctx, args) {
-    const id = args.positionals[0];
-    await ctx.nodes.delete(id);
-    ctx.printer.note(`Deleted node ${id}`);
-    if (ctx.printer.json) ctx.printer.data({ id });
-  },
-};
+  addListOptions(
+    node
+      .command('ls')
+      .summary('list the nodes of a graph')
+      .description('List the nodes of a graph.')
+      .argument('<graph>', 'the graph (id or uid)')
+  ).action(rt.act(ls));
+
+  node
+    .command('show')
+    .summary('show one node with its full ports and attributes')
+    .description(
+      'Show one node whole — ports, attributes and position — as JSON.'
+    )
+    .argument('<nodeId>', 'the node record id (see `node ls`)')
+    .action(rt.act(show));
+
+  addCheckOption(
+    node
+      .command('add')
+      .summary('add a node to a graph')
+      .description(
+        'Add a node to a graph. On a TTY, a missing name or label is prompted for.'
+      )
+      .argument('<graph>', 'the graph (id or uid)')
+      .option('--name <machine_name>', 'machine name, unique within the graph')
+      .option('--label <label>', 'display name')
+      .option('--attributes <json|@file>', 'attribute list as JSON')
+      .option('--ports <json|@file>', 'port list as JSON')
+      .option('--position <x,y>', 'manual canvas position')
+  )
+    .addHelpText('after', PORTS_EXAMPLE)
+    .action(rt.act(add));
+
+  addCheckOption(
+    node
+      .command('set')
+      .summary('update a node')
+      .description(
+        'Update node fields. Only the flags you pass are changed; --attributes and\n' +
+          '--ports replace the whole list.\n\n' +
+          '--clear-position drops the manual layout override so the node goes back\n' +
+          'to being placed by dagre.'
+      )
+      .argument('<nodeId>', 'the node record id')
+      .option('--name <name>', 'machine name')
+      .option('--label <label>', 'display name')
+      .option('--attributes <json|@file>', 'replacement attribute list')
+      .option('--ports <json|@file>', 'replacement port list')
+      .option('--position <x,y>', 'manual canvas position')
+      .option('--clear-position', 'drop the manual position')
+  )
+    .addHelpText('after', PORTS_EXAMPLE)
+    .action(rt.act(set));
+
+  addCheckOption(
+    node
+      .command('rm')
+      .summary('delete a node')
+      .description(
+        'Delete a node. On a TTY it asks first; --yes skips that. Derived edges\n' +
+          'involving the node simply stop being derived.'
+      )
+      .argument('<nodeId>', 'the node record id')
+      .option('-y, --yes', 'skip the confirmation prompt')
+  ).action(rt.act(rm));
+}
