@@ -23,10 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { cloneGraph } from '@/lib/graph/clone';
+import { cloneGraph } from '@project/shared/graph';
 import { useWorkspaces } from '@/hooks/use-workspaces';
 import pb from '@/lib/pocketbase';
-import type { TypedPocketBase } from '@/types';
+import type { TypedPocketBase } from '@project/shared/types';
 
 interface ForkDialogProps {
   graph: Graph;

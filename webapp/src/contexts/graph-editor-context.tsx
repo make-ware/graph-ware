@@ -22,7 +22,7 @@ import {
 } from '@project/shared/mutators';
 import { useGraphViewer } from '@/hooks/use-graph-viewer';
 import pb from '@/lib/pocketbase';
-import type { TypedPocketBase } from '@/types';
+import type { TypedPocketBase } from '@project/shared/types';
 
 /**
  * What a pending alias rename will do to the overrides underneath it.

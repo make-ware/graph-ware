@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/card';
 import { useWorkspaces } from '@/hooks/use-workspaces';
 import pb from '@/lib/pocketbase';
-import type { TypedPocketBase } from '@/types';
+import type { TypedPocketBase } from '@project/shared/types';
 
 function NewGraphContent() {
   const router = useRouter();

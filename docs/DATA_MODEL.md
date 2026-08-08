@@ -1,8 +1,8 @@
 # Graph-Ware Data Model
 
 Reference for the collections, their rules, and the JSON value objects stored on
-them. Source of truth: `webapp/src/schema/*.ts` (collections and access rules)
-and `webapp/src/lib/graph/primitives.ts` (value objects). The database is built
+them. Source of truth: `shared/src/schema/*.ts` (collections and access rules)
+and `shared/src/lib/graph/primitives.ts` (value objects). The database is built
 from the generated migrations in `pocketbase/pb_migrations/` — see
 [Schema vs. migrations](#schema-vs-migrations).
 
@@ -46,7 +46,7 @@ for child-graph reuse, [GRAPH_ENGINE.md](GRAPH_ENGINE.md) for the derived model.
 
 ### Workspaces and access
 
-`webapp/src/schema/workspace.ts`, `webapp/src/schema/workspace-member.ts`
+`shared/src/schema/workspace.ts`, `shared/src/schema/workspace-member.ts`
 
 | field | type | notes |
 |---|---|---|
@@ -69,7 +69,7 @@ The workspace's creator is admitted by `workspace.owner` directly rather than
 through a roll row, so deleting the last membership row cannot strand a
 workspace. The row is still created, because the roll is what teammates see.
 
-**Rule fragments are built, not typed out.** `webapp/src/schema/permissions.ts`
+**Rule fragments are built, not typed out.** `shared/src/schema/permissions.ts`
 exports `memberOf(path)`, `writerOf(path)` and `adminOf(path)`, and every
 collection composes its rules from them at the relation depth it needs — `''`
 on `Workspaces`, `'workspace'` on `Graphs`, `'graph.workspace'` on a child. The
@@ -94,7 +94,7 @@ two-workspace matrix against a running server.
 
 ### `Graphs`
 
-`webapp/src/schema/graph.ts`
+`shared/src/schema/graph.ts`
 
 | field | type | notes |
 |---|---|---|
@@ -134,7 +134,7 @@ not a relationship — there is no merge and no sync. See
 
 ### `GraphNodes`
 
-`webapp/src/schema/graph-node.ts`
+`shared/src/schema/graph-node.ts`
 
 | field | type | notes |
 |---|---|---|
@@ -159,7 +159,7 @@ goes unless a position is set.
 
 ### `GraphImports`
 
-`webapp/src/schema/graph-import.ts`
+`shared/src/schema/graph-import.ts`
 
 | field | type | notes |
 |---|---|---|
@@ -200,7 +200,7 @@ not by rules — an API rule cannot walk an ancestor chain. Full semantics in
 
 ### `GraphEdgeOverrides`
 
-`webapp/src/schema/graph-edge-override.ts`
+`shared/src/schema/graph-edge-override.ts`
 
 | field | type | notes |
 |---|---|---|
@@ -220,7 +220,7 @@ The engine only ever loads the overrides of the root graph being rendered.
 
 ### `GraphVersions`
 
-`webapp/src/schema/graph-version.ts`
+`shared/src/schema/graph-version.ts`
 
 | field | type | notes |
 |---|---|---|
@@ -269,7 +269,7 @@ practice.
 
 ### `PortKinds`
 
-`webapp/src/schema/port-kind.ts`
+`shared/src/schema/port-kind.ts`
 
 `workspace` (optional), `key`, `label`, `color`, `description`,
 `compatibleWith: string[]`. Indexes: `UNIQUE (workspace, key)`, `(key)`.
@@ -297,9 +297,9 @@ Defaults are seeded from `DEFAULT_PORT_KINDS` in the schema file and by
 
 ## Value objects
 
-Defined in `webapp/src/lib/graph/primitives.ts`. Stored as JSON on `GraphNodes`.
+Defined in `shared/src/lib/graph/primitives.ts`. Stored as JSON on `GraphNodes`.
 
-> These deliberately live in `lib/`, not in `webapp/src/schema/`.
+> These deliberately live in `lib/`, not in `shared/src/schema/`.
 > `pocketbase-migrate` imports every file in the schema directory looking for a
 > collection definition, and the exclude list must stay at its default.
 
@@ -374,7 +374,7 @@ instanceId   = "<nodeId>"                       // a node on the root graph
 
 Everything derived is keyed by `instanceId`: flat nodes, edges, diagnostics,
 layout positions, canvas selection, and the endpoints of `GraphEdgeOverrides`.
-Helpers are in `webapp/src/lib/graph/imports.ts`.
+Helpers are in `shared/src/lib/graph/imports.ts`.
 
 This is the single easiest thing to get wrong. Using a record id anywhere in the
 derived layer looks correct until a graph is imported twice, at which point two
@@ -382,7 +382,7 @@ different components silently collapse into one.
 
 ## Schema vs. migrations
 
-`webapp/src/schema/*.ts` is where fields and rules are *authored*.
+`shared/src/schema/*.ts` is where fields and rules are *authored*.
 `pocketbase/pb_migrations/*.js` is what PocketBase applies on boot. **Editing a
 schema file does not change the database.**
 
@@ -391,7 +391,7 @@ yarn db:status        # what has drifted
 yarn db:generate      # write the migration (round-trips up()/down() before saving)
 yarn db:verify        # what the local database actually applied
 yarn db:verify-rules  # walk the access matrix against a *running* server
-yarn typegen          # regenerate webapp/src/types/pocketbase-types.ts
+yarn typegen          # regenerate shared/src/types/pocketbase-types.ts
 ```
 
 Two things the generator cannot work out on its own, both learned the hard way

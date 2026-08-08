@@ -18,11 +18,11 @@
         "name": "next"
       }
     ],
+    // `@project/shared` is a real workspace now, resolved through its own
+    // `exports` map — no alias. Adding one back would shadow the package and
+    // silently produce two copies of the schema types.
     "paths": {
-      "@/*": ["./src/*"],
-      "@project/shared": ["./src/shared/index.ts"],
-      "@project/shared/schema": ["./src/schema/index.ts"],
-      "@project/shared/mutators": ["./src/mutators/index.ts"]
+      "@/*": ["./src/*"]
     },
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },

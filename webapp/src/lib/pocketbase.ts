@@ -1,40 +1,13 @@
-// Create PocketBase client instance using local PocketBase package
-import PocketBase from 'pocketbase';
-import type { TypedPocketBase } from './types';
+// The app-wide PocketBase client.
+//
+// The factory lives in `@project/shared/client` so the CLI can build the same
+// client against a different URL and a file-backed auth store. What stays here
+// is the part that is webapp-only: reading the build-time env var, and holding
+// the module singleton every context and hook imports.
+import { createPocketBaseClient } from '@project/shared/client';
 
-export interface PocketBaseClientOptions {
-  enableAutoCancellation?: boolean;
-  requestTimeout?: number;
-}
-
-/**
- * Create a configured PocketBase client with proper settings
- */
-function createPocketBaseClient(
-  url: string = 'http://localhost:8090',
-  options: PocketBaseClientOptions = {}
-): TypedPocketBase {
-  const pb = new PocketBase(url) as TypedPocketBase;
-
-  // Enable auto cancellation for duplicate requests
-  pb.autoCancellation(options.enableAutoCancellation ?? false);
-
-  // Add global error interceptor for better error handling
-  pb.beforeSend = function (url, requestOptions) {
-    // Add timeout to prevent hanging requests
-    if (!requestOptions.signal && options.requestTimeout) {
-      const controller = new AbortController();
-      setTimeout(() => controller.abort(), options.requestTimeout);
-      requestOptions.signal = controller.signal;
-    }
-
-    return { url, options: requestOptions };
-  };
-
-  return pb;
-}
-
-// Create PocketBase client instance
+// Inlined at build time by Next — `/` for the container images (same origin
+// behind nginx), `http://localhost:8090` for dev.
 const pb = createPocketBaseClient(
   process.env.NEXT_PUBLIC_POCKETBASE_URL || 'http://localhost:8090',
   {
@@ -43,5 +16,4 @@ const pb = createPocketBaseClient(
   }
 );
 
-// Export the client instance
 export default pb;

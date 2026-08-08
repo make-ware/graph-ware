@@ -39,7 +39,7 @@ import { Switch } from '@/components/ui/switch';
 import { useGraphEditor } from '@/hooks/use-graph-editor';
 import { useGraphViewer } from '@/hooks/use-graph-viewer';
 import pb from '@/lib/pocketbase';
-import type { TypedPocketBase } from '@/types';
+import type { TypedPocketBase } from '@project/shared/types';
 import { cn } from '@/lib/utils';
 
 /**

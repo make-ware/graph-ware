@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, waitFor } from '@testing-library/react';
 import type { GraphImport, GraphNode } from '@project/shared';
-import { SAMPLES, sampleBundle } from './fixtures/graph-fixtures';
+import { SAMPLES, sampleBundle } from '@project/shared/test-fixtures';
 
 // ---------------------------------------------------------------------------
 // A PocketBase stand-in with per-collection records and real subscriptions.

@@ -13,7 +13,13 @@
   "files": [],
   "references": [
     {
+      "path": "./shared"
+    },
+    {
       "path": "./webapp"
+    },
+    {
+      "path": "./cli"
     }
   ],
   "exclude": ["node_modules", "**/node_modules", "**/dist", "**/.next", "pb"]

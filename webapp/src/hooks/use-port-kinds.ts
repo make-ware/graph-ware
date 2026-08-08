@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_PORT_KINDS, type PortKindRegistry } from '@project/shared';
 import { PortKindMutator } from '@project/shared/mutators';
 import pb from '@/lib/pocketbase';
-import type { TypedPocketBase } from '@/types';
+import type { TypedPocketBase } from '@project/shared/types';
 
 function defaultColors(): Record<string, string> {
   const colors: Record<string, string> = {};

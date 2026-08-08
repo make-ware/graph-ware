@@ -28,11 +28,11 @@ import {
   assembleResolvedGraph,
   loadImportTree,
   type ResolvedGraphData,
-} from '@/lib/graph/resolver';
+} from '@project/shared/graph';
 import type { ViewerSelection } from '@/lib/graph/flow-adapter';
 import { usePortKinds } from '@/hooks/use-port-kinds';
 import pb from '@/lib/pocketbase';
-import type { TypedPocketBase } from '@/types';
+import type { TypedPocketBase } from '@project/shared/types';
 
 /** A focusable subgraph instance, for the sidebar. */
 export interface SubgraphInstance {

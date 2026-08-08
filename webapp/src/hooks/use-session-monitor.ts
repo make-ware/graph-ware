@@ -3,7 +3,7 @@
 import { useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import pb from '@/lib/pocketbase';
-import { createAuthService } from '@/services';
+import { createAuthService } from '@project/shared/services';
 
 /**
  * Hook to monitor session validity and handle automatic refresh/expiration

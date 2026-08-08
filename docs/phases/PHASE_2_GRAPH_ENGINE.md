@@ -49,18 +49,18 @@ No schema changes. No new collections.
 ## Files
 
 ```
-webapp/src/lib/graph/resolver.ts       ResolvedGraph from a graph id
-webapp/src/lib/graph/engine.ts         flatten → connect → override → validate → layout
-webapp/src/lib/graph/filters.ts        FilterGroup evaluation, extracted for testing
-webapp/src/lib/graph/layout.ts         dagre wrapper
-webapp/src/lib/graph/types.ts          FlatNode, FlatEdge, GraphDiagnostic, ResolvedGraph
+shared/src/lib/graph/resolver.ts       ResolvedGraph from a graph id
+shared/src/lib/graph/engine.ts         flatten → connect → override → validate → layout
+shared/src/lib/graph/filters.ts        FilterGroup evaluation, extracted for testing
+shared/src/lib/graph/layout.ts         dagre wrapper
+shared/src/lib/graph/types.ts          FlatNode, FlatEdge, GraphDiagnostic, ResolvedGraph
 webapp/src/hooks/use-port-kinds.ts
 webapp/src/test/__tests__/graph-engine-*.test.ts
 ```
 
 Add `@dagrejs/dagre` to `webapp/package.json`. `@xyflow/react` is already there.
 
-Export the pure pieces from `@project/shared` (`webapp/src/shared/index.ts`);
+Export the pure pieces from `@project/shared` (`shared/src/index.ts`);
 keep the resolver out of it, since it takes a PocketBase client.
 
 ## Design notes

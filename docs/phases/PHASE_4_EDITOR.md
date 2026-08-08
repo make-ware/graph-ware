@@ -86,7 +86,7 @@ free-text-with-warning behaviour is the whole of the "kind typos" open question
 and wanted to be one testable thing rather than a branch inside a form row.
 
 Forms use `react-hook-form` + `@hookform/resolvers` against the `*InputSchema`
-zod schemas already exported from `webapp/src/schema/`, matching the existing
+zod schemas already exported from `shared/src/schema/`, matching the existing
 auth forms. `parseAuthError` in `lib/errors.ts` normalizes PocketBase errors into
 field errors — reuse it rather than writing a second error mapper.
 

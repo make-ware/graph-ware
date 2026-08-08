@@ -10,7 +10,7 @@ import React, {
 import type { User, UserInput } from '@project/shared';
 import { parseAuthError, globalLoadingManager } from '@project/shared';
 import pb from '@/lib/pocketbase';
-import { createAuthService } from '@/services';
+import { createAuthService } from '@project/shared/services';
 
 interface AuthContextType {
   user: User | null;

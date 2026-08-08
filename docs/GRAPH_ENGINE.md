@@ -4,7 +4,7 @@ The engine turns a resolved tree of graphs into everything the canvas needs:
 flat nodes, edges, diagnostics, and positions. None of it is persisted.
 
 **Status: built** (Phase 2). This document is the contract, and
-`webapp/src/lib/graph/` implements it: `resolver.ts` loads the tree,
+`shared/src/lib/graph/` implements it: `resolver.ts` loads the tree,
 `engine.ts` runs the pipeline, `filters.ts` evaluates filter groups and
 `layout.ts` wraps dagre. The primitives it operates on (`primitives.ts`) and
 the addressing scheme (`imports.ts`) came from Phase 1.

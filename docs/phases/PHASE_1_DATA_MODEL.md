@@ -12,7 +12,7 @@ everything after it has something to stand on.
 
 ## In scope
 
-- Five collections defined in `webapp/src/schema/` with fields, indexes and
+- Five collections defined in `shared/src/schema/` with fields, indexes and
   access rules.
 - Value-object schemas for attributes, ports, filters and instance paths.
 - Client-side import rules (cycle, depth, alias allocation) and the goja hook
@@ -46,18 +46,18 @@ Full reference: [DATA_MODEL.md](../DATA_MODEL.md).
 **Created**
 
 ```
-webapp/src/lib/graph/primitives.ts        value objects + shared constants
-webapp/src/lib/graph/imports.ts           instance paths, cycle/depth rules, aliases
-webapp/src/schema/graph.ts
-webapp/src/schema/graph-node.ts
-webapp/src/schema/graph-import.ts
-webapp/src/schema/graph-edge-override.ts
-webapp/src/schema/port-kind.ts
-webapp/src/mutators/graph.ts
-webapp/src/mutators/graph-node.ts
-webapp/src/mutators/graph-import.ts
-webapp/src/mutators/graph-edge-override.ts
-webapp/src/mutators/port-kind.ts
+shared/src/lib/graph/primitives.ts        value objects + shared constants
+shared/src/lib/graph/imports.ts           instance paths, cycle/depth rules, aliases
+shared/src/schema/graph.ts
+shared/src/schema/graph-node.ts
+shared/src/schema/graph-import.ts
+shared/src/schema/graph-edge-override.ts
+shared/src/schema/port-kind.ts
+shared/src/mutators/graph.ts
+shared/src/mutators/graph-node.ts
+shared/src/mutators/graph-import.ts
+shared/src/mutators/graph-edge-override.ts
+shared/src/mutators/port-kind.ts
 pocketbase/pb_hooks/graph-imports.pb.js   create/update handlers
 pocketbase/pb_hooks/graph-imports-guard.js  the shared ES5 guard
 pocketbase/pb_migrations/*_created_*.js   generated

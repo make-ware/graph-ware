@@ -11,8 +11,14 @@ RUN corepack enable && corepack prepare yarn@4.12.0 --activate
 
 # Copy package files
 COPY package.json yarn.lock .yarnrc.yml* ./
+COPY shared/package.json ./shared/
 COPY webapp/package.json ./webapp/
-# Source path is pocketbase/ for local-dev clarity; in-image path stays /app/pb/
+COPY cli/package.json ./cli/
+# Twice, on purpose. The root package.json declares the workspace as
+# `pocketbase`, and `yarn install --immutable` fails outright if that directory
+# is missing — it resolves a different workspace set than the lockfile records.
+# The runtime path is /app/pb, which is what supervisord and start.sh expect.
+COPY pocketbase/package.json ./pocketbase/
 COPY pocketbase/package.json ./pb/
 
 # Install dependencies
@@ -41,10 +47,16 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/.yarn ./.yarn
 COPY --from=deps /app/pb/pocketbase ./pb/pocketbase
 
-# Copy workspace files
+# Copy workspace files. `shared` is source-only — the webapp compiles its raw
+# .ts through `transpilePackages`, so the sources have to be here at build time.
 COPY package.json yarn.lock .yarnrc.yml* ./
+COPY shared ./shared
 COPY webapp ./webapp
+COPY cli/package.json ./cli/
 COPY pocketbase ./pb
+# See the deps stage: `yarn workspace @project/webapp build` resolves the whole
+# workspace set, so the declared `pocketbase` directory has to exist here too.
+COPY pocketbase/package.json ./pocketbase/
 
 # Build Next.js application
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -112,9 +124,16 @@ COPY --from=builder --chown=nextjs:nodejs /app/.yarn ./.yarn
 COPY --from=builder --chown=nextjs:nodejs /app/webapp/package.json ./webapp/
 COPY --from=builder --chown=nextjs:nodejs /app/pb/package.json ./pb/
 
+# The whole `shared` workspace, not just its package.json: node_modules below
+# carries a `@project/shared` symlink into it, and a dangling symlink breaks
+# `next start` even though the sources were already compiled into .next.
+COPY --from=builder --chown=nextjs:nodejs /app/shared ./shared
+
 # Install production dependencies only
+# Only the root tree. `nodeLinker: node-modules` hoists everything there — the
+# per-workspace directories are empty, and the builder never had a
+# webapp/node_modules to copy in the first place.
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/webapp/node_modules ./webapp/node_modules
 
 # Copy built application
 COPY --from=builder --chown=nextjs:nodejs /app/webapp/.next ./webapp/.next
