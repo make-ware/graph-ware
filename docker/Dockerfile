@@ -14,7 +14,11 @@ COPY package.json yarn.lock .yarnrc.yml* ./
 COPY shared/package.json ./shared/
 COPY webapp/package.json ./webapp/
 COPY cli/package.json ./cli/
-# Source path is pocketbase/ for local-dev clarity; in-image path stays /app/pb/
+# Twice, on purpose. The root package.json declares the workspace as
+# `pocketbase`, and `yarn install --immutable` fails outright if that directory
+# is missing — it resolves a different workspace set than the lockfile records.
+# The runtime path is /app/pb, which is what supervisord and start.sh expect.
+COPY pocketbase/package.json ./pocketbase/
 COPY pocketbase/package.json ./pb/
 
 # Install dependencies
@@ -48,7 +52,11 @@ COPY --from=deps /app/pb/pocketbase ./pb/pocketbase
 COPY package.json yarn.lock .yarnrc.yml* ./
 COPY shared ./shared
 COPY webapp ./webapp
+COPY cli/package.json ./cli/
 COPY pocketbase ./pb
+# See the deps stage: `yarn workspace @project/webapp build` resolves the whole
+# workspace set, so the declared `pocketbase` directory has to exist here too.
+COPY pocketbase/package.json ./pocketbase/
 
 # Build Next.js application
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -122,8 +130,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/pb/package.json ./pb/
 COPY --from=builder --chown=nextjs:nodejs /app/shared ./shared
 
 # Install production dependencies only
+# Only the root tree. `nodeLinker: node-modules` hoists everything there — the
+# per-workspace directories are empty, and the builder never had a
+# webapp/node_modules to copy in the first place.
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/webapp/node_modules ./webapp/node_modules
 
 # Copy built application
 COPY --from=builder --chown=nextjs:nodejs /app/webapp/.next ./webapp/.next
