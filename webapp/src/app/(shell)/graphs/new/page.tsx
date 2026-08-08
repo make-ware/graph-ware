@@ -15,16 +15,22 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { useWorkspaces } from '@/hooks/use-workspaces';
 import pb from '@/lib/pocketbase';
 import type { TypedPocketBase } from '@/types';
 
 function NewGraphContent() {
   const router = useRouter();
+  const { memberships, active } = useWorkspaces();
+
+  const writable = memberships.filter((row) => row.role !== 'viewer');
 
   const create = async (input: GraphInput) => {
     const client = pb as unknown as TypedPocketBase;
     // `GraphMutator.entityCreate` injects `owner` from the auth store — the
     // create rule requires it to equal the caller, so the form never sends it.
+    // `workspace` it does send, because the caller may have more than one and
+    // only they know which this belongs in.
     const graph = await new GraphMutator(client).create(input);
     toast.success(`Created ${graph.label}`);
     router.push(`/graphs/${graph.id}/edit`);
@@ -52,6 +58,11 @@ function NewGraphContent() {
         <CardContent>
           <GraphForm
             submitLabel="Create graph"
+            defaultValues={{ workspace: active?.id }}
+            workspaces={writable.map((row) => ({
+              id: row.workspace.id,
+              name: row.workspace.name,
+            }))}
             onSubmit={create}
             onCancel={() => router.push('/graphs')}
           />

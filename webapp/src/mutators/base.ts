@@ -426,9 +426,19 @@ export abstract class BaseMutator<T extends RecordModel, InputType> {
   }
 
   /**
-   * Check if an error is a "not found" error
+   * Check if an error is a "not found" error.
+   *
+   * **On `status`, not on the message.** PocketBase's `ClientResponseError`
+   * reads "The requested resource wasn't found." — which contains neither
+   * `404` nor `not found`, so the string check this used to do rejected every
+   * real 404 it was written for. `getFirstByFilter` then threw instead of
+   * returning `null`, and "is there a row matching this filter?" became an
+   * exception. Keep the string fallback for callers that hand-roll an error.
    */
   protected isNotFoundError(error: unknown): boolean {
+    const status = (error as { status?: unknown } | null)?.status;
+    if (status === 404) return true;
+
     return (
       error instanceof Error &&
       (error.message.includes('404') ||

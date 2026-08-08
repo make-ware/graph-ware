@@ -2,7 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Menu, LogOut, Network, Settings } from 'lucide-react';
+import { Menu, LogOut, Library, Network, Settings, Users } from 'lucide-react';
+import { WorkspaceSwitcher } from '@/components/layout/workspace-switcher';
 import { useAuth } from '@/hooks/use-auth';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,8 @@ export function NavigationBar({ className }: NavigationBarProps) {
   // Navigation links for authenticated users
   const authenticatedLinks = [
     { href: '/graphs', label: 'Graphs', icon: Network },
+    { href: '/library', label: 'Library', icon: Library },
+    { href: '/workspaces', label: 'Workspaces', icon: Users },
     { href: '/profile', label: 'Profile', icon: Settings },
   ];
 
@@ -82,7 +85,7 @@ export function NavigationBar({ className }: NavigationBarProps) {
         {/* Desktop Navigation */}
         <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
           <div className="w-full flex-1 md:w-auto md:flex-none">
-            {/* Additional navigation items can go here */}
+            {isAuthenticated && !isMobile && <WorkspaceSwitcher />}
           </div>
 
           {/* Desktop Auth Navigation */}

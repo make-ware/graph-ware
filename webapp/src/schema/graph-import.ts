@@ -2,13 +2,18 @@ import {
   baseSchema,
   BoolField,
   defineCollection,
+  JSONField,
   NumberField,
   RelationField,
   TextField,
 } from 'pocketbase-zod-schema';
 import { z } from 'zod';
 // Relative, not `@/…` — see the note in ./graph.ts.
-import { IMPORT_ALIAS_PATTERN } from '../lib/graph/primitives';
+import {
+  AttributeOverrideMapSchema,
+  IMPORT_ALIAS_PATTERN,
+} from '../lib/graph/primitives';
+import { graphReadable, memberOf, SIGNED_IN, writerOf } from './permissions';
 
 /**
  * One graph importing another — the reuse mechanism.
@@ -43,6 +48,32 @@ export const GraphImportSchema = z
     // is for. Records still always carry a value — PocketBase stores `false`
     // rather than null, and `GraphImportInputSchema` defaults it to `true`.
     enabled: BoolField().optional(),
+    /**
+     * Pin this import to one `GraphVersions` snapshot. Absent means live.
+     *
+     * Live is the default on purpose. Defaulting to pinned would freeze every
+     * import that exists at whatever the child happened to be, and a library
+     * whose components never move is a dead one. Pinning is the deliberate act,
+     * for the systems that need it.
+     *
+     * `cascadeDelete: false`: deleting a version must not delete the import
+     * that pinned it. The resolver reports a dangling pin and falls back to
+     * live rather than silently losing the link.
+     */
+    version: RelationField({
+      collection: 'GraphVersions',
+      cascadeDelete: false,
+    }).optional(),
+    /**
+     * Attribute values this instance replaces on the graph it pulls in, so
+     * `starboard_bank` can run at 24 V without forking `BatterySystem`.
+     *
+     * Applied during flatten, **before** auto-connect, so an overridden value
+     * is what input-port filters are evaluated against — otherwise a voltage
+     * override would change the label and not the wiring. That is a Phase 2
+     * contract change; see docs/GRAPH_ENGINE.md § 1. Flatten.
+     */
+    attributeOverrides: JSONField(AttributeOverrideMapSchema).optional(),
   })
   .extend(baseSchema);
 
@@ -50,16 +81,12 @@ export const GraphImportCollection = defineCollection({
   collectionName: 'GraphImports',
   schema: GraphImportSchema,
   permissions: {
-    listRule:
-      '@request.auth.id != "" && (parent.owner = @request.auth.id || parent.visibility != "private")',
-    viewRule:
-      '@request.auth.id != "" && (parent.owner = @request.auth.id || parent.visibility != "private")',
-    // Own the parent, and be allowed to see the child you are pulling in.
-    createRule:
-      '@request.auth.id != "" && parent.owner = @request.auth.id && (child.owner = @request.auth.id || child.visibility != "private")',
-    updateRule:
-      '@request.auth.id != "" && parent.owner = @request.auth.id && (child.owner = @request.auth.id || child.visibility != "private")',
-    deleteRule: '@request.auth.id != "" && parent.owner = @request.auth.id',
+    listRule: graphReadable('parent'),
+    viewRule: graphReadable('parent'),
+    // Write the parent, and be allowed to see the child you are pulling in.
+    createRule: `${SIGNED_IN} && ${writerOf('parent.workspace')} && (child.visibility != "private" || ${memberOf('child.workspace')})`,
+    updateRule: `${SIGNED_IN} && ${writerOf('parent.workspace')} && (child.visibility != "private" || ${memberOf('child.workspace')})`,
+    deleteRule: `${SIGNED_IN} && ${writerOf('parent.workspace')}`,
   },
   indexes: [
     'CREATE UNIQUE INDEX `idx_graph_imports_parent_alias` ON `GraphImports` (`parent`, `alias`)',
@@ -84,6 +111,8 @@ export const GraphImportInputSchema = z.object({
   label: z.string().max(200).optional(),
   order: z.number().int().min(0).default(0),
   enabled: z.boolean().default(true),
+  version: z.string().max(64).optional(),
+  attributeOverrides: AttributeOverrideMapSchema.optional(),
 });
 
 export type GraphImportInput = z.infer<typeof GraphImportInputSchema>;

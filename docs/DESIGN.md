@@ -131,18 +131,43 @@ browser or a live PocketBase. Layers below `mutators/` are Phase 2 and 3; see
 
 ### Ownership through nested lookups
 
-`GraphNodes`, `GraphImports` and `GraphEdgeOverrides` carry no `owner` column.
-Their rules resolve ownership through the parent relation —
-`graph.owner = @request.auth.id`. A denormalized owner would be one join
-cheaper and one more thing that can silently drift out of sync after a transfer
-or a clone. At this scale, correctness wins.
+`GraphNodes`, `GraphImports`, `GraphEdgeOverrides` and `GraphVersions` carry no
+owner or workspace column of their own. Their rules resolve scope through the
+parent relation — `graph.workspace`, and from there its membership roll. A
+denormalized copy would be one join cheaper and one more thing that can silently
+drift out of sync after a transfer or a clone. At this scale, correctness wins.
+
+### A workspace owns a graph; a user created it
+
+Phase 5 moved the access anchor from `Graphs.owner` to `Graphs.workspace`.
+Scoping work to a single user account works right up to the moment two people
+need to edit the same system, at which point the only options are sharing a
+password or copying the graph — and a copy that has to be kept in step by hand
+is the problem this whole model exists to avoid.
+
+`owner` survives as provenance and grants nothing. Every user gets a personal
+workspace on signup, so the single-player case is unchanged from outside: one
+workspace, one member, and the switcher hides itself.
+
+The cost is that the rules got long enough to be dangerous, and that the
+same-row semantics of `?=` / `?!=` are the difference between a role model and a
+security hole. Both are answered structurally: the expressions are built once in
+`webapp/src/schema/permissions.ts`, and `yarn db:verify-rules` walks a
+three-user, two-workspace matrix against a running server, because no unit test
+can assert a property of PocketBase's filter engine.
 
 ### Visibility, not just ownership
 
 Reuse across users needs a way to publish, so `Graphs.visibility` is
-`private | unlisted | public` and every read rule admits anything not private.
-Without it, importing a graph from someone else's library would resolve to an
-empty subtree — the parent would be readable and the child would not.
+`private | unlisted | public` and every read rule admits anything not private —
+ahead of the membership test, so a published graph resolves for someone in none
+of its workspaces. Without it, importing a graph from someone else's library
+would resolve to an empty subtree: the parent would be readable and the child
+would not.
+
+Visibility grants reads only. Writing still requires membership, which is what
+makes "use somebody's component without being able to change it" the default
+relationship in the library.
 
 ### The cycle guard is a hook
 

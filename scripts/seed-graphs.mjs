@@ -86,7 +86,9 @@ async function upsert(pb, collection, filter, data) {
 
 async function seedPortKinds(pb) {
   for (const kind of PORT_KINDS) {
-    await upsert(pb, 'PortKinds', `key = "${kind.key}"`, kind);
+    // Global rows: no workspace, which is also why this needs the superuser
+    // credentials — nobody else may write them.
+    await upsert(pb, 'PortKinds', `workspace = "" && key = "${kind.key}"`, kind);
   }
   console.log(`  port kinds:  ${PORT_KINDS.length}`);
 }
@@ -104,15 +106,49 @@ async function seedDemoUser(pb) {
   });
 }
 
-async function seedGraphs(pb, owner, samples) {
+/**
+ * The demo user's personal workspace.
+ *
+ * Normally provisioned by the `Users` hook on signup, but the seed runs as a
+ * superuser against a server that may have been created before the hook existed
+ * — so it makes sure rather than assuming. Everything the seed writes goes in
+ * here, because `Graphs.workspace` is required since Phase 5.
+ */
+async function seedWorkspace(pb, user) {
+  const existing = await findOne(
+    pb,
+    'Workspaces',
+    `owner = "${user.id}" && personal = true`
+  );
+  if (existing) return existing;
+
+  const workspace = await pb.collection('Workspaces').create({
+    owner: user.id,
+    name: DEMO_USER.name,
+    slug: 'demo',
+    personal: true,
+  });
+
+  await upsert(
+    pb,
+    'WorkspaceMembers',
+    `workspace = "${workspace.id}" && user = "${user.id}"`,
+    { workspace: workspace.id, user: user.id, role: 'admin' }
+  );
+
+  return workspace;
+}
+
+async function seedGraphs(pb, owner, workspace, samples) {
   const byUid = new Map();
 
   for (const sample of samples) {
     const graph = await upsert(
       pb,
       'Graphs',
-      `owner = "${owner}" && uid = "${sample.uid}"`,
+      `workspace = "${workspace}" && uid = "${sample.uid}"`,
       {
+        workspace,
         owner,
         uid: sample.uid,
         name: sample.name,
@@ -205,7 +241,10 @@ async function main() {
   const user = await seedDemoUser(pb);
   console.log(`  demo user:   ${DEMO_USER.email} / ${DEMO_USER.password}`);
 
-  const byUid = await seedGraphs(pb, user.id, loadSampleGraphs());
+  const workspace = await seedWorkspace(pb, user);
+  console.log(`  workspace:   ${workspace.slug}`);
+
+  const byUid = await seedGraphs(pb, user.id, workspace.id, loadSampleGraphs());
   await seedImports(pb, byUid);
 
   console.log('\nDone. Sign in as the demo user and open the `testDataElement` graph —');

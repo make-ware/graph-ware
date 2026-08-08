@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Boxes, Network, Pencil, Plus } from 'lucide-react';
+import { Boxes, GitFork, Network, Pencil, Plus } from 'lucide-react';
 import type { Graph } from '@project/shared';
 import {
   GraphImportMutator,
@@ -10,6 +10,7 @@ import {
   GraphNodeMutator,
 } from '@project/shared/mutators';
 import { ProtectedRoute } from '@/components/auth/protected-route';
+import { ForkDialog } from '@/components/graph/fork-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,9 +21,9 @@ import {
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
+import { useWorkspaces } from '@/hooks/use-workspaces';
 import pb from '@/lib/pocketbase';
 import type { TypedPocketBase } from '@/types';
-import { cn } from '@/lib/utils';
 
 interface GraphCounts {
   nodes: number;
@@ -35,16 +36,20 @@ interface GraphsListState {
   counts: Record<string, GraphCounts>;
 }
 
-const UNGROUPED = '__ungrouped__';
-
 function GraphCard({
   graph,
   counts,
+  canEdit,
   isOwner,
+  onFork,
 }: {
   graph: Graph;
   counts: GraphCounts | undefined;
+  /** Whether the caller may write this graph's workspace. */
+  canEdit: boolean;
+  /** Whether they created it. Provenance, not permission. */
   isOwner: boolean;
+  onFork: () => void;
 }) {
   return (
     <Card className="transition-colors hover:border-primary/50">
@@ -62,7 +67,17 @@ function GraphCard({
             <Badge variant="outline" className="text-[10px]">
               {graph.visibility}
             </Badge>
-            {isOwner && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              title={`Fork ${graph.label}`}
+              onClick={onFork}
+            >
+              <GitFork className="size-3.5" />
+              <span className="sr-only">Fork {graph.label}</span>
+            </Button>
+            {canEdit && (
               <Button
                 asChild
                 variant="ghost"
@@ -92,7 +107,11 @@ function GraphCard({
             <Network className="size-3.5" aria-hidden />
             {counts?.imports ?? 0} import{counts?.imports === 1 ? '' : 's'}
           </span>
+          {graph.namespace && (
+            <span className="font-mono">{graph.namespace}</span>
+          )}
           {!isOwner && <Badge variant="secondary">shared</Badge>}
+          {graph.forkedFrom && <Badge variant="outline">fork</Badge>}
         </div>
 
         {graph.tags?.length ? (
@@ -111,28 +130,33 @@ function GraphCard({
 
 function GraphsList() {
   const { user } = useAuth();
+  const { memberships, active, isLoading: workspacesLoading } = useWorkspaces();
+
   const [state, setState] = useState<GraphsListState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [forking, setForking] = useState<Graph | null>(null);
+
+  const workspaceIds = useMemo(
+    () => memberships.map((row) => row.workspace.id),
+    [memberships]
+  );
 
   useEffect(() => {
+    if (workspacesLoading) return;
+
     let cancelled = false;
 
     const load = async () => {
       const client = pb as unknown as TypedPocketBase;
-      const graphMutator = new GraphMutator(client);
 
-      const [mine, published] = await Promise.all([
-        graphMutator.listMine(),
-        graphMutator.listPublic(),
-      ]);
-
-      // A public graph you own comes back from both calls.
-      const byId = new Map<string, Graph>();
-      for (const graph of [...mine.items, ...published.items]) {
-        byId.set(graph.id, graph);
-      }
-      const graphs = [...byId.values()];
+      // Every workspace the caller is on, not just the active one. The switcher
+      // decides where a *new* graph goes; hiding the others would mean losing
+      // sight of work you can perfectly well open.
+      const result = await new GraphMutator(client).listForWorkspaces(
+        workspaceIds
+      );
+      const graphs = result.items;
       const ids = graphs.map((graph) => graph.id);
 
       // Two bulk queries rather than a count request per graph — the mutators
@@ -162,7 +186,7 @@ function GraphsList() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [workspaceIds, workspacesLoading]);
 
   const tags = useMemo(() => {
     const all = new Set<string>();
@@ -172,6 +196,21 @@ function GraphsList() {
     return [...all].sort();
   }, [state]);
 
+  /** Workspace id → its name and whether the caller may write it. */
+  const workspaceInfo = useMemo(() => {
+    const info = new Map<string, { name: string; canWrite: boolean }>();
+    for (const row of memberships) {
+      info.set(row.workspace.id, {
+        name: row.workspace.name,
+        canWrite: row.role !== 'viewer',
+      });
+    }
+    return info;
+  }, [memberships]);
+
+  // Grouped by workspace rather than by namespace, which is what workspaces
+  // were for. `namespace` survives as part of the uid uniqueness key and is
+  // shown on the card; it is no longer the organizing idea.
   const grouped = useMemo(() => {
     const visible = (state?.graphs ?? []).filter(
       (graph) => !activeTag || graph.tags?.includes(activeTag)
@@ -179,19 +218,21 @@ function GraphsList() {
 
     const groups = new Map<string, Graph[]>();
     for (const graph of visible) {
-      const key = graph.namespace || UNGROUPED;
-      const bucket = groups.get(key);
+      const bucket = groups.get(graph.workspace);
       if (bucket) bucket.push(graph);
-      else groups.set(key, [graph]);
+      else groups.set(graph.workspace, [graph]);
     }
 
-    // Named namespaces alphabetically, ungrouped last.
+    // The active workspace first — it is the one the user is working in — then
+    // the rest by name.
     return [...groups.entries()].sort(([left], [right]) => {
-      if (left === UNGROUPED) return 1;
-      if (right === UNGROUPED) return -1;
-      return left.localeCompare(right);
+      if (left === active?.id) return -1;
+      if (right === active?.id) return 1;
+      return (workspaceInfo.get(left)?.name ?? '').localeCompare(
+        workspaceInfo.get(right)?.name ?? ''
+      );
     });
-  }, [state, activeTag]);
+  }, [state, activeTag, active, workspaceInfo]);
 
   if (error) {
     return <p className="text-sm text-muted-foreground">{error}</p>;
@@ -213,6 +254,10 @@ function GraphsList() {
         No graphs yet.{' '}
         <Link href="/graphs/new" className="underline">
           Create one
+        </Link>
+        , browse the{' '}
+        <Link href="/library" className="underline">
+          library
         </Link>
         , or run <code className="font-mono">yarn db:seed</code> to load the
         sample system.
@@ -244,28 +289,44 @@ function GraphsList() {
         </div>
       )}
 
-      {grouped.map(([namespace, graphs]) => (
-        <section key={namespace} className="space-y-3">
-          <h2
-            className={cn(
-              'text-sm font-medium tracking-wide text-muted-foreground uppercase',
-              namespace === UNGROUPED && 'italic'
-            )}
-          >
-            {namespace === UNGROUPED ? 'No namespace' : namespace}
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {graphs.map((graph) => (
-              <GraphCard
-                key={graph.id}
-                graph={graph}
-                counts={state.counts[graph.id]}
-                isOwner={graph.owner === user?.id}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
+      {grouped.map(([workspaceId, graphs]) => {
+        const info = workspaceInfo.get(workspaceId);
+
+        return (
+          <section key={workspaceId} className="space-y-3">
+            <h2 className="flex items-center gap-2 text-sm font-medium tracking-wide text-muted-foreground uppercase">
+              {info?.name ?? 'Workspace'}
+              {info && !info.canWrite && (
+                <Badge variant="outline" className="text-[10px] normal-case">
+                  read only
+                </Badge>
+              )}
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {graphs.map((graph) => (
+                <GraphCard
+                  key={graph.id}
+                  graph={graph}
+                  counts={state.counts[graph.id]}
+                  canEdit={info?.canWrite ?? false}
+                  isOwner={graph.owner === user?.id}
+                  onFork={() => setForking(graph)}
+                />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+
+      {forking && (
+        <ForkDialog
+          graph={forking}
+          open={Boolean(forking)}
+          onOpenChange={(open) => {
+            if (!open) setForking(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -278,7 +339,7 @@ export default function GraphsPage() {
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">Graphs</h1>
             <p className="text-muted-foreground">
-              Your systems and everything published to the shared library.
+              Everything in the workspaces you belong to.
             </p>
           </div>
           <Button asChild>

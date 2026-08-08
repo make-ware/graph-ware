@@ -10,8 +10,11 @@ export * from '../lib/graph/imports';
 export * from '../lib/graph/types';
 export * from '../lib/graph/filters';
 export * from '../lib/graph/engine';
-// `lib/graph/resolver` is deliberately absent: it takes a PocketBase client.
-// It lives at `@/lib/graph/resolver` for the pages that need it.
+export * from '../lib/graph/snapshot';
+// `lib/graph/resolver` and `lib/graph/clone` are deliberately absent: both take
+// a PocketBase client. They live at `@/lib/graph/…` for the pages that need
+// them. `snapshot` is here because its exported half is pure — the publish and
+// restore helpers that touch the network live in the version mutator.
 export * from '../lib/graph/layout';
 export * from '../lib/loading-manager';
 export * from '../lib/errors';

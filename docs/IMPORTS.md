@@ -151,10 +151,18 @@ Loading a tree is breadth-first, one batched request per depth level:
 2. Fetch all `GraphImports` whose `parent` is in the current level
    (`parent = "a" || parent = "b" || …`), skipping `enabled: false`.
 3. Fetch the `GraphNodes` for those graphs in one batched request.
-4. Repeat with the children, memoizing by graph id so a diamond loads its shared
-   child once.
-5. Stop at `MAX_IMPORT_DEPTH` levels or `MAX_RESOLVED_NODES` nodes, emitting a
+4. Fetch the `GraphVersions` behind any pinned imports at this level — one read
+   per *version*, not per import, so two instances pinned to the same snapshot
+   cost one.
+5. Repeat with the children, memoizing by graph id for a live instance and by
+   version id for a pinned one, so a diamond loads its shared child once and two
+   different pins of one graph stay distinct.
+6. Stop at `MAX_IMPORT_DEPTH` levels or `MAX_RESOLVED_NODES` nodes, emitting a
    diagnostic rather than continuing.
+
+A pinned entry costs no node or import fetch at all: both are already inside its
+snapshot. It still needs the child `Graphs` records, because a snapshot stores
+child ids rather than child graphs.
 
 A tree nested eight deep costs eight round-trips. Collapsing that into a single
 `pb_hooks` endpoint is Phase 6 — deferred until the shape has settled, because a
@@ -170,12 +178,12 @@ A graph can import someone else's graph if that graph is not `private`. The
 create rule enforces it:
 
 ```
-parent.owner = @request.auth.id && (child.owner = @request.auth.id || child.visibility != "private")
+writerOf(parent.workspace) && (child.visibility != "private" || memberOf(child.workspace))
 ```
 
 The read rules on `Graphs` and `GraphNodes` admit anything not private, so the
-imported subtree resolves for the importer. Writes stay owner-only — you can use
-someone's component, not edit it.
+imported subtree resolves for the importer. Writes stay inside the child's
+workspace — you can use someone's component, not edit it.
 
 If the child's owner later flips it to `private`, existing imports remain as
 records but resolve to nothing. The resolver reports that as a diagnostic
@@ -203,14 +211,123 @@ The alternative — `cascadeDelete: false`, which makes PocketBase refuse to
 delete a referenced graph — was rejected because it turns a recoverable warning
 into a hard error with no way forward from inside the app.
 
+## Pinned imports
+
+By default an import resolves to the child's **current** state: edit a shared
+component and every system using it changes, immediately. That is usually what
+you want from a library, and it is why live is the default and always will be —
+defaulting to pinned would freeze every import at whatever the child happened to
+be when somebody first used it, and nobody's fixes would reach anyone.
+
+Setting `GraphImports.version` pins that one instance to a `GraphVersions`
+snapshot. The pin is per instance, so `port_bank` can follow the current
+`BatterySystem` while `starboard_bank` stays on `v3`.
+
+**A snapshot is one level deep.** It captures the child's own nodes and its own
+import rows — including any pins and `attributeOverrides` those rows carried —
+but not the graphs those rows *name*. So:
+
+- the pinned child renders exactly as it was, with the import structure it had;
+- a grandchild resolves **live**, unless the snapshotted row pinned it too.
+
+Which means "pinned" does not mean "nothing below this can move". Freezing
+transitively is the correct-in-principle alternative and was rejected on cost:
+every publish would copy the whole subtree, and a shared component would be
+duplicated into every snapshot that reaches it. If a subtree genuinely has to
+hold still, pin at each level, or deep-fork it.
+
+Two smaller properties:
+
+- **A dangling pin degrades to live.** If the version is deleted or becomes
+  unreadable, the resolver renders the current child and emits
+  `version-unreadable` rather than dropping the branch. A wrong picture the user
+  can see beats an empty one they cannot explain. The import panel says the same
+  thing where the pin can actually be fixed.
+- **Pinning does not break overrides.** A snapshot preserves the original
+  `GraphNodes` ids, so the instance paths under a pinned import are the ones the
+  parent's `GraphEdgeOverrides` already address.
+
+The editor shows how many newer versions exist on a pinned import, and offers to
+move to the latest. Without that a stale pin is indistinguishable from a current
+one.
+
+## Per-import attribute overrides
+
+`GraphImports.attributeOverrides` replaces attribute values for one instance —
+`starboard_bank` at 24 V while `port_bank`, the same `BatterySystem` record,
+stays at 12 V — without forking the child.
+
+Keys are **instance ids relative to the import**: the alias chain below it plus
+the node's record id, exactly what `buildInstanceId` produces. A node on the
+imported graph itself is just its id; `cells/<nodeId>` reaches one import
+deeper. Record ids rather than node names, for the same reason
+`GraphEdgeOverrides` uses them — a rename must not silently detach the override.
+
+```jsonc
+{ "<nodeId>": { "voltage": "24" } }
+```
+
+Three rules, each of which exists because the alternative is a silent failure:
+
+- **An override replaces an existing attribute; it never introduces one.** A new
+  attribute would need a `kind` the override has nowhere to put, and a typo
+  would quietly become data. A key or attribute name that matches nothing
+  surfaces as `stale-attribute-override`.
+- **They are applied during flatten, before auto-connect.** An input port's
+  filter is evaluated against the source node's attributes, so an override
+  applied any later would change a displayed value without changing the wiring
+  it implies. See [GRAPH_ENGINE.md § 1. Flatten](GRAPH_ENGINE.md#1-flatten).
+- **The outermost import wins.** When a parent and a child both override the
+  same attribute, the parent's value lands: the child's is a default it set for
+  every context, the parent's is about this instance in the system it owns.
+
+## Forking
+
+`cloneGraph` copies a graph into a workspace you can write, and records
+`Graphs.forkedFrom` on the copy. **A fork is a copy, and copies drift** —
+`forkedFrom` is provenance, not a relationship. There is no merge and no sync,
+and the UI says so, because "fork" carries a git-shaped expectation this model
+does not meet.
+
+Two modes, differing in what the copy *depends on*:
+
+- **shallow** — copies this graph. Its imports keep pointing at the originals,
+  so the copy still moves when they do. Cheap, and you keep getting the original
+  authors' changes, wanted or not.
+- **deep** — copies the whole import subtree, so the copy is self-contained.
+
+The deep case has one property worth stating outright: **a graph imported more
+than once is copied once.** Deep-forking `testDataElement` produces a single
+copy of `BatterySystem` with both `port_bank` and `starboard_bank` rewired to
+it. Copying it twice would turn one shared component into two that diverge on
+the first edit — which is the opposite of what the import model is for.
+
+Depth is checked against the same `MAX_IMPORT_DEPTH` the import guard uses, on
+the same edge list, so a deep fork cannot produce a tree the resolver refuses to
+render. There is no second traversal with its own opinions.
+
+**Edge overrides are translated where they can be, and dropped where they
+cannot.** An override addresses endpoints by instance path, and an instance path
+ends in a `GraphNodes` record id — which a copy does not share. Node *names* are
+unique within a graph, so a root-to-root override can be translated through
+them; one reaching into an imported subtree cannot, because the copy of that
+subtree has new ids the whole way down. Those are dropped rather than copied
+verbatim: a copied override that matched nothing would show up as a
+`stale-override` warning on a graph the user has not touched yet.
+
+Pins survive a fork unchanged. A fork of a system that depended on `v3` of a
+component still depends on `v3` of it — the pin points at the *original's*
+version, which is fine, since versions are readable wherever their graph is.
+
+Cloning is not atomic; PocketBase has no multi-record transaction. Graphs and
+their nodes are written first, imports second, so a fork that fails partway
+leaves a set of disconnected copies a user can delete rather than imports
+pointing at graphs that do not exist.
+
 ## Not yet supported
 
-Deliberately deferred, with the phase that takes them on:
-
-- **Version pinning.** An import always resolves to the child's current state.
-  Editing a shared component changes every system using it, immediately.
-  `GraphVersions` plus a pinned version on the import is Phase 5.
-- **Per-import overrides.** You cannot yet say "this instance of
-  `BatterySystem`, but with `voltage = 24`". Phase 5.
-- **Cloning a subtree.** Forking a graph and everything it imports into your own
-  library is Phase 5.
+- **Merging a fork back.** There is no diff and no merge, by design. Phase 6's
+  import/export is the closest thing, and it is a whole-file operation.
+- **Moving a graph between workspaces.** The field exists and the rules would
+  allow it, but it changes who can see a graph and deserves a deliberate flow
+  rather than a dropdown on a details form.

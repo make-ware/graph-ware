@@ -28,6 +28,25 @@ export class PortKindMutator extends BaseMutator<PortKind, PortKindInput> {
   }
 
   /**
+   * Every kind the caller can see, global rows first.
+   *
+   * The read rule already hides other workspaces' kinds, so this needs no
+   * filter — but the *order* matters, and PocketBase will not sort empty-first
+   * on a relation. Sorting here puts global rows ahead of workspace rows so a
+   * later `map[key] = …` lets a workspace shadow a global kind of the same key
+   * rather than the other way round.
+   */
+  private async visibleRecords(): Promise<PortKind[]> {
+    const records = await this.getCollection().getFullList({ sort: 'key' });
+    return [...records].sort((left, right) => {
+      const leftScoped = left.workspace ? 1 : 0;
+      const rightScoped = right.workspace ? 1 : 0;
+      if (leftScoped !== rightScoped) return leftScoped - rightScoped;
+      return left.key < right.key ? -1 : left.key > right.key ? 1 : 0;
+    });
+  }
+
+  /**
    * A `kind` → colour lookup for the canvas.
    *
    * Falls back to the compiled-in defaults if the collection cannot be read,
@@ -41,8 +60,7 @@ export class PortKindMutator extends BaseMutator<PortKind, PortKindInput> {
     }
 
     try {
-      const records = await this.getCollection().getFullList({ sort: 'key' });
-      for (const record of records) {
+      for (const record of await this.visibleRecords()) {
         map[record.key] = record.color;
       }
     } catch (error) {
@@ -69,8 +87,7 @@ export class PortKindMutator extends BaseMutator<PortKind, PortKindInput> {
     }
 
     try {
-      const records = await this.getCollection().getFullList({ sort: 'key' });
-      for (const record of records) {
+      for (const record of await this.visibleRecords()) {
         registry[record.key] = {
           key: record.key,
           compatibleWith: record.compatibleWith,
@@ -81,6 +98,16 @@ export class PortKindMutator extends BaseMutator<PortKind, PortKindInput> {
     }
 
     return registry;
+  }
+
+  /** The global vocabulary — rows with no workspace. Superuser-write. */
+  async listGlobal(page = 1, perPage = 200) {
+    return await this.getList(page, perPage, 'workspace = ""');
+  }
+
+  /** One workspace's own kinds, which shadow global rows of the same key. */
+  async listForWorkspace(workspaceId: string, page = 1, perPage = 200) {
+    return await this.getList(page, perPage, `workspace = "${workspaceId}"`);
   }
 
   /** Colour for one kind, with the neutral fallback applied. */

@@ -54,7 +54,7 @@ interface PendingOverride {
  * filter — that is the better fix, and the empty state says so.
  */
 export function OverridePanel() {
-  const { view, overrides, selection, isOwner } = useGraphViewer();
+  const { view, overrides, selection, canEdit } = useGraphViewer();
   const { createOverride, deleteOverride, isSaving } = useGraphEditor();
 
   const [pending, setPending] = useState<PendingOverride | null>(null);
@@ -171,7 +171,7 @@ export function OverridePanel() {
 
   return (
     <div className="space-y-4">
-      {isOwner && (
+      {canEdit && (
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
@@ -203,7 +203,7 @@ export function OverridePanel() {
         </p>
       )}
 
-      {selection?.type !== 'edge' && isOwner && (
+      {selection?.type !== 'edge' && canEdit && (
         <p className="text-muted-foreground text-xs">
           Select an edge on the canvas to suppress it.
         </p>
@@ -231,7 +231,7 @@ export function OverridePanel() {
                 key={override.id}
                 override={override}
                 byInstance={byInstance}
-                canEdit={isOwner && !isSaving}
+                canEdit={canEdit && !isSaving}
                 onRemove={() => remove(override)}
               />
             ))}

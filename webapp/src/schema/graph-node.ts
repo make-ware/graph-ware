@@ -13,6 +13,7 @@ import {
   PortListSchema,
   // Relative, not `@/…` — see the note in ./graph.ts.
 } from '../lib/graph/primitives';
+import { graphReadable, graphWritable } from './permissions';
 
 /**
  * An element inside a graph: a battery, a fuse, a control unit.
@@ -40,14 +41,13 @@ export const GraphNodeCollection = defineCollection({
   schema: GraphNodeSchema,
   permissions: {
     // Nested lookups through the parent graph rather than a denormalized owner
-    // column — one less thing that can drift out of sync.
-    listRule:
-      '@request.auth.id != "" && (graph.owner = @request.auth.id || graph.visibility != "private")',
-    viewRule:
-      '@request.auth.id != "" && (graph.owner = @request.auth.id || graph.visibility != "private")',
-    createRule: '@request.auth.id != "" && graph.owner = @request.auth.id',
-    updateRule: '@request.auth.id != "" && graph.owner = @request.auth.id',
-    deleteRule: '@request.auth.id != "" && graph.owner = @request.auth.id',
+    // column — one less thing that can drift out of sync. Since Phase 5 the
+    // chain runs one hop further, `graph.workspace`, for the same reason.
+    listRule: graphReadable('graph'),
+    viewRule: graphReadable('graph'),
+    createRule: graphWritable('graph'),
+    updateRule: graphWritable('graph'),
+    deleteRule: graphWritable('graph'),
   },
   indexes: [
     'CREATE INDEX `idx_graph_nodes_graph` ON `GraphNodes` (`graph`)',

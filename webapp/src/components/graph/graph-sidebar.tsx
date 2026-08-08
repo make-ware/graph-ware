@@ -27,7 +27,7 @@ function samePath(left: readonly string[], right: readonly string[]): boolean {
  * graph is first class and renders as its own root.
  */
 export function GraphSidebar() {
-  const { graph, subgraphs, focus, setFocus, isOwner } = useGraphViewer();
+  const { graph, subgraphs, focus, setFocus, canEdit } = useGraphViewer();
   const pathname = usePathname();
 
   return (
@@ -60,7 +60,7 @@ export function GraphSidebar() {
               {graph.visibility}
             </Badge>
           )}
-          {graph && !isOwner && (
+          {graph && !canEdit && (
             <Badge variant="outline" className="text-[10px]">
               read-only
             </Badge>
@@ -68,7 +68,7 @@ export function GraphSidebar() {
         </div>
 
         {/* Only on the viewer route — the editor already is the edit surface. */}
-        {graph && isOwner && !pathname.endsWith('/edit') && (
+        {graph && canEdit && !pathname.endsWith('/edit') && (
           <Button asChild size="sm" variant="outline" className="w-full">
             <Link href={`/graphs/${graph.id}/edit`}>
               <Pencil className="size-3.5" />
@@ -112,6 +112,20 @@ export function GraphSidebar() {
                   <span className="truncate" title={entry.label}>
                     {entry.label}
                   </span>
+                  {/*
+                    A pinned instance renders a snapshot, not the child's
+                    current state — which is invisible on the canvas and would
+                    otherwise only be discoverable by opening the import panel.
+                  */}
+                  {entry.pinnedVersion !== undefined && (
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 font-mono text-[10px]"
+                      title="Pinned to a published version"
+                    >
+                      v{entry.pinnedVersion}
+                    </Badge>
+                  )}
                   <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                     {entry.nodeCount}
                   </span>

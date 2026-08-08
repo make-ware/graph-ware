@@ -9,8 +9,8 @@ own document, and states explicitly what it does *not* cover so scope stays put.
 | 2 | [Graph engine](PHASE_2_GRAPH_ENGINE.md) | **Done** |
 | 3 | [Viewer](PHASE_3_VIEWER.md) | **Done** |
 | 4 | [Editor](PHASE_4_EDITOR.md) | **Done** |
-| 5 | [Library and sharing](PHASE_5_LIBRARY_AND_SHARING.md) | Next |
-| 6 | [Interop](PHASE_6_INTEROP.md) | Planned |
+| 5 | [Library and sharing](PHASE_5_LIBRARY_AND_SHARING.md) | **Done** |
+| 6 | [Interop](PHASE_6_INTEROP.md) | Next |
 
 ## Shape of a phase document
 

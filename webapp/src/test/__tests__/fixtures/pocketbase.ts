@@ -46,6 +46,20 @@ export class MockAuthStore {
 }
 
 /**
+ * A rejection shaped like PocketBase's own 404.
+ *
+ * The message is verbatim from `ClientResponseError`, and it deliberately
+ * contains neither `404` nor `not found` — mocking a 404 as
+ * `new Error('404 not found')` is what let `BaseMutator.isNotFoundError` pass
+ * its tests while rejecting every real 404. Use this instead.
+ */
+export function notFoundError(): Error & { status: number } {
+  return Object.assign(new Error("The requested resource wasn't found."), {
+    status: 404,
+  });
+}
+
+/**
  * Mock PocketBase Collection
  */
 export function createMockCollection() {

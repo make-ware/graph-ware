@@ -146,6 +146,37 @@ export const PortSchema = z.object({
 export type Port = z.infer<typeof PortSchema>;
 
 // ---------------------------------------------------------------------------
+// Per-import attribute overrides
+// ---------------------------------------------------------------------------
+
+/**
+ * Attribute values one import instance replaces on the graph it pulls in.
+ *
+ * Stored on `GraphImports.attributeOverrides`, so `starboard_bank` can run at
+ * 24 V while `port_bank` — the same `BatterySystem` record — stays at 12 V,
+ * without forking the child.
+ *
+ * Keys are **instance ids relative to the import**: the alias chain below this
+ * import plus the `GraphNodes` record id, exactly what `buildInstanceId`
+ * produces. For a node on the imported graph itself that is just the node id;
+ * `cells/NODEID` reaches a node one import deeper. Record ids rather than node
+ * names, for the same reason `GraphEdgeOverrides` uses them — a rename must not
+ * silently detach the override.
+ *
+ * Values name an attribute on that node and give its replacement `value`. An
+ * override can only *replace* an existing attribute, never introduce one: a new
+ * attribute would need a `kind` the override has nowhere to put, and a typo
+ * would silently become data. Keys that match nothing surface as a
+ * `stale-attribute-override` diagnostic.
+ */
+export const AttributeOverrideMapSchema = z.record(
+  z.string().min(1).max(500),
+  z.record(z.string().min(1).max(100), z.string().max(500))
+);
+
+export type AttributeOverrideMap = z.infer<typeof AttributeOverrideMapSchema>;
+
+// ---------------------------------------------------------------------------
 // Node payloads (what a GraphNode record actually stores)
 // ---------------------------------------------------------------------------
 
@@ -159,6 +190,83 @@ export const NodePositionSchema = z.object({
 });
 
 export type NodePosition = z.infer<typeof NodePositionSchema>;
+
+// ---------------------------------------------------------------------------
+// Version snapshots
+// ---------------------------------------------------------------------------
+
+/**
+ * The current `GraphSnapshot.format`. Bump it when the payload shape changes;
+ * `restoreSnapshot` refuses a format it does not understand rather than
+ * half-restoring one.
+ */
+export const GRAPH_SNAPSHOT_FORMAT = 1;
+
+/**
+ * A `GraphNodes` record as it appears inside a snapshot.
+ *
+ * **`id` is the original record id, and that is load-bearing.** Instance paths
+ * — and therefore every `GraphEdgeOverride` on the parent — end in a node id.
+ * Preserving it is what lets an import be pinned to an old version without
+ * every override underneath it going stale.
+ */
+export const SnapshotNodeSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().min(1).max(100),
+  label: z.string().min(1).max(200),
+  attributes: z.array(AttributeSchema).max(100).optional(),
+  ports: z.array(PortSchema).max(100).optional(),
+  position: z.object({ x: z.number(), y: z.number() }).optional(),
+});
+
+export type SnapshotNode = z.infer<typeof SnapshotNodeSchema>;
+
+/** A `GraphImports` row as it appears inside a snapshot. */
+export const SnapshotImportSchema = z.object({
+  id: z.string().min(1).max(64),
+  child: z.string().min(1).max(64),
+  alias: z.string().min(1).max(40),
+  label: z.string().max(200).optional(),
+  order: z.number().int().min(0),
+  enabled: z.boolean(),
+  /** A pin the snapshotted graph itself carried, preserved verbatim. */
+  version: z.string().max(64).optional(),
+  attributeOverrides: AttributeOverrideMapSchema.optional(),
+});
+
+export type SnapshotImport = z.infer<typeof SnapshotImportSchema>;
+
+/**
+ * One immutable picture of a graph, stored as JSON on `GraphVersions.snapshot`.
+ *
+ * A blob rather than a second set of records because a version is never queried
+ * field by field — it is written once, read whole, and restored whole.
+ *
+ * **The snapshot is one level deep.** It captures the graph's own nodes and its
+ * own import rows; the graphs those imports name are *not* copied into it. So a
+ * pinned import renders the child exactly as it was, while the child's own
+ * children keep resolving live unless they carried pins of their own. Freezing
+ * transitively is the correct-in-principle alternative and was rejected on
+ * cost: every publish would copy the entire subtree, and a shared library graph
+ * would be duplicated into every snapshot that reaches it. See
+ * docs/IMPORTS.md § Pinned imports.
+ */
+export const GraphSnapshotSchema = z.object({
+  format: z.number().int().min(1),
+  /** The graph's own descriptive fields, so a restore can put them back. */
+  graph: z.object({
+    uid: z.string().min(1).max(64),
+    name: z.string().min(1).max(100),
+    label: z.string().min(1).max(200),
+    namespace: z.string().max(32).optional(),
+    description: z.string().max(2000).optional(),
+    tags: z.array(z.string().max(50)).max(20).optional(),
+  }),
+  nodes: z.array(SnapshotNodeSchema).max(1000),
+  imports: z.array(SnapshotImportSchema).max(200),
+});
+
+export type GraphSnapshot = z.infer<typeof GraphSnapshotSchema>;
 
 // ---------------------------------------------------------------------------
 // Instance paths
@@ -194,6 +302,14 @@ export const NAMESPACE_PATTERN = /^[a-z0-9]{1,32}$/;
 /** Import aliases: the per-parent instance key. */
 export const IMPORT_ALIAS_PATTERN = /^[a-z0-9_]{1,40}$/;
 
+/**
+ * Workspace slugs: the URL segment a workspace is addressed by.
+ *
+ * Dashes rather than underscores, and never at either end — this one appears in
+ * a path (`/workspaces/north-sea`), unlike the machine names above.
+ */
+export const WORKSPACE_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
+
 /** Normalize an arbitrary label into a machine name. */
 export function toMachineName(input: string): string {
   return input
@@ -201,4 +317,15 @@ export function toMachineName(input: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
+}
+
+/** Normalize an arbitrary label into a workspace slug. */
+export function toSlug(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/g, '');
 }

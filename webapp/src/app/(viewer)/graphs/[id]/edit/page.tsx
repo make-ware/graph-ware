@@ -14,6 +14,7 @@ import { GraphSidebar } from '@/components/graph/graph-sidebar';
 import { DeleteGraphDialog } from '@/components/graph/editor/delete-graph-dialog';
 import { GraphForm } from '@/components/graph/editor/graph-form';
 import { ImportManager } from '@/components/graph/editor/import-manager';
+import { VersionPanel } from '@/components/graph/editor/version-panel';
 import { NodeEditorModal } from '@/components/graph/editor/node-editor-modal';
 import { OverridePanel } from '@/components/graph/editor/override-panel';
 import {
@@ -55,7 +56,7 @@ function EditorBody() {
     select,
     isLoading,
     error,
-    isOwner,
+    canEdit,
   } = useGraphViewer();
   const { saveGraph, deleteGraph, setNodePosition, resetLayout, isSaving } =
     useGraphEditor();
@@ -108,16 +109,22 @@ function EditorBody() {
     );
   }
 
-  if (!isLoading && graph && !isOwner) {
+  if (!isLoading && graph && !canEdit) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
         <p className="text-muted-foreground text-sm">
-          {graph.label} belongs to someone else. You can view it, and import it
-          into a graph of your own, but not edit it.
+          {graph.label} belongs to a workspace you cannot write to. You can view
+          it, and import it into a graph of your own — or fork it from the
+          library into a workspace of yours.
         </p>
-        <Button asChild variant="outline">
-          <Link href={`/graphs/${graph.id}`}>Open the viewer</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/graphs/${graph.id}`}>Open the viewer</Link>
+          </Button>
+          <Button asChild variant="ghost">
+            <Link href="/library">Browse the library</Link>
+          </Button>
+        </div>
       </div>
     );
   }
@@ -219,6 +226,7 @@ function EditorBody() {
                 <TabsTrigger value="details">Details</TabsTrigger>
                 <TabsTrigger value="imports">Imports</TabsTrigger>
                 <TabsTrigger value="overrides">Overrides</TabsTrigger>
+                <TabsTrigger value="versions">Versions</TabsTrigger>
                 <TabsTrigger value="diagnostics">
                   Issues
                   {errorCount > 0 && (
@@ -267,6 +275,14 @@ function EditorBody() {
                 <ScrollArea className="h-full">
                   <div className="p-3">
                     <OverridePanel />
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="versions" className="min-h-0 flex-1">
+                <ScrollArea className="h-full">
+                  <div className="p-3">
+                    <VersionPanel />
                   </div>
                 </ScrollArea>
               </TabsContent>

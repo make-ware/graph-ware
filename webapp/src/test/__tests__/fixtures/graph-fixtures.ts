@@ -17,11 +17,13 @@ import type {
   GraphEdgeOverride,
   GraphImport,
   GraphNode,
+  GraphVersion,
   Port,
   PortKindRegistry,
   ResolvedChild,
   ResolvedGraph,
 } from '@project/shared';
+import { serializeGraph } from '@project/shared';
 import type { ResolvedGraphData } from '@/lib/graph/resolver';
 
 interface SampleElement {
@@ -155,6 +157,7 @@ export function sampleBundle(): ResolvedGraphData {
     graphs,
     nodesByGraph,
     importsByParent: new Map([[SAMPLES.testDataElement.id, imports]]),
+    pins: new Map(),
   };
 }
 
@@ -220,6 +223,24 @@ export function makeOverride(
     targetPort: '',
     ...overrides,
   } as unknown as GraphEdgeOverride;
+}
+
+/** A `GraphVersions` record wrapping a snapshot of `graph` as it stands. */
+export function makeVersion(
+  graph: Graph,
+  nodes: readonly GraphNode[],
+  imports: readonly GraphImport[] = [],
+  overrides: Partial<GraphVersion> = {}
+): GraphVersion {
+  return {
+    ...RECORD_STAMP,
+    id: nextId('version'),
+    graph: graph.id,
+    version: 1,
+    snapshot: serializeGraph(graph, nodes, imports),
+    createdBy: 'demo_user_id',
+    ...overrides,
+  } as unknown as GraphVersion;
 }
 
 /** A graph with `nodes` and no imports, ready to hand to the engine. */

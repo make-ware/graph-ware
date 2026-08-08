@@ -55,6 +55,15 @@ type GraphFormValues = z.input<typeof GraphInputSchema>;
 interface GraphFormProps {
   defaultValues?: Partial<GraphInput>;
   submitLabel?: string;
+  /**
+   * Workspaces the graph may be created in — those the caller can write.
+   *
+   * Only offered when there is more than one: a solo user has a single personal
+   * workspace and should never be asked to choose. Absent entirely when
+   * *editing*, because moving a graph between workspaces changes who can see it
+   * and is not a thing to do by accident on a details form.
+   */
+  workspaces?: { id: string; name: string }[];
   onSubmit: (input: GraphInput) => Promise<void>;
   onCancel?: () => void;
 }
@@ -69,6 +78,7 @@ interface GraphFormProps {
 export function GraphForm({
   defaultValues,
   submitLabel = 'Save',
+  workspaces,
   onSubmit,
   onCancel,
 }: GraphFormProps) {
@@ -85,6 +95,7 @@ export function GraphForm({
   } = useForm<GraphFormValues, unknown, GraphInput>({
     resolver: zodResolver(GraphInputSchema),
     defaultValues: {
+      workspace: '',
       uid: '',
       name: '',
       label: '',
@@ -153,6 +164,37 @@ export function GraphForm({
 
   return (
     <form onSubmit={handleSubmit(submit)} className="space-y-4">
+      {workspaces && workspaces.length > 1 && (
+        <div className="space-y-2">
+          <Label htmlFor="workspace">Workspace</Label>
+          <Controller
+            control={control}
+            name="workspace"
+            render={({ field }) => (
+              <Select
+                value={field.value ?? ''}
+                onValueChange={field.onChange}
+                disabled={isSubmitting}
+              >
+                <SelectTrigger id="workspace">
+                  <SelectValue placeholder="Choose a workspace" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workspaces.map((workspace) => (
+                    <SelectItem key={workspace.id} value={workspace.id}>
+                      {workspace.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <p className="text-muted-foreground text-xs">
+            Who can read and write this graph is decided by its workspace.
+          </p>
+        </div>
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="label">Title</Label>
         <Input
