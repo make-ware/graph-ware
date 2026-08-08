@@ -52,6 +52,60 @@ export function portHandleId(port: Port, index: number): string {
   return `${port.name}-${side}-${index}`;
 }
 
+/**
+ * The inverse of {@link portHandleId}: recover a port's index and direction.
+ *
+ * The editor needs this because the derived layer and the stored layer address
+ * ports differently. `FlatEdge.sourcePortName` is a handle id, but
+ * `GraphEdgeOverrides.sourcePort` is a **bare port name** — `applyOverrides`
+ * resolves it with `findPort`. Building an override straight from a selected
+ * edge without converting stores a row that silently matches nothing and
+ * resurfaces as a `stale-override` warning.
+ *
+ * Only the trailing two segments are parsed. Port names have no character
+ * restrictions and may contain `-`, so splitting the whole id apart would
+ * mangle `dc-supply-out-0`; the name is recovered by indexing into the node's
+ * `ports` array instead (see {@link portNameFromHandle}).
+ */
+export function parsePortHandle(
+  handle: string
+): { direction: Port['direction']; index: number } | null {
+  const lastDash = handle.lastIndexOf('-');
+  if (lastDash === -1) return null;
+
+  const index = Number(handle.slice(lastDash + 1));
+  if (!Number.isInteger(index) || index < 0) return null;
+
+  const sideDash = handle.lastIndexOf('-', lastDash - 1);
+  if (sideDash === -1) return null;
+
+  const side = handle.slice(sideDash + 1, lastDash);
+  if (side !== 'out' && side !== 'in') return null;
+
+  return { direction: side === 'out' ? 'output' : 'input', index };
+}
+
+/**
+ * The bare port name behind a handle id, for storing on a `GraphEdgeOverride`.
+ *
+ * Resolved by index rather than by string surgery, so a port named `dc-supply`
+ * round-trips. Returns `null` when the handle does not address a port that
+ * exists on the node in the direction its id claims — a node edited since the
+ * edge was derived.
+ */
+export function portNameFromHandle(
+  node: Pick<FlatNode, 'ports'>,
+  handle: string
+): string | null {
+  const parsed = parsePortHandle(handle);
+  if (!parsed) return null;
+
+  const port = node.ports[parsed.index];
+  if (!port || port.direction !== parsed.direction) return null;
+
+  return port.name;
+}
+
 function budgetKey(instanceId: string, portIndex: number): string {
   return `${instanceId}#${portIndex}`;
 }
@@ -269,7 +323,8 @@ function edgeId(
 // 4. Overrides
 // ---------------------------------------------------------------------------
 
-interface ResolvedEndpoint {
+/** A node, one of its ports, and that port's XYFlow handle id. */
+export interface ResolvedEndpoint {
   node: FlatNode;
   port: Port;
   handle: string;
@@ -299,6 +354,51 @@ function compareOverrides(
     compareStrings(left.targetPath, right.targetPath) ||
     compareStrings(left.targetPort, right.targetPort)
   );
+}
+
+/**
+ * Where an override's endpoints land in the current view.
+ *
+ * `reason` is phrased to complete "the … override … <reason>", so the same
+ * string serves the engine's diagnostic and the editor's override panel.
+ */
+export type OverrideEndpoints =
+  | { ok: true; source: ResolvedEndpoint; target: ResolvedEndpoint }
+  | { ok: false; reason: string };
+
+/**
+ * Resolve an override's stored endpoints against the flattened nodes.
+ *
+ * Exported because the editor needs to show which overrides have gone stale,
+ * and re-deriving that in the UI would be a second implementation of a rule
+ * that has to agree with this one exactly. Note the asymmetry it papers over:
+ * an override stores **bare port names**, while a `FlatEdge` carries handle
+ * ids — `findPort` is what converts between them.
+ */
+export function resolveOverrideEndpoints(
+  byInstance: ReadonlyMap<string, FlatNode>,
+  override: GraphEdgeOverride
+): OverrideEndpoints {
+  const sourceNode = byInstance.get(override.sourcePath);
+  const targetNode = byInstance.get(override.targetPath);
+  if (!sourceNode || !targetNode) {
+    return { ok: false, reason: 'names a node that is not in this graph' };
+  }
+
+  const source = findPort(sourceNode, override.sourcePort, 'output');
+  const target = findPort(targetNode, override.targetPort, 'input');
+  if (!source || !target) {
+    return { ok: false, reason: 'names a port that no longer exists' };
+  }
+
+  return { ok: true, source, target };
+}
+
+/** Index flattened nodes by instance id — the key overrides address them by. */
+export function indexByInstance(
+  nodes: readonly FlatNode[]
+): Map<string, FlatNode> {
+  return new Map(nodes.map((node) => [node.instanceId, node]));
 }
 
 function staleDiagnostic(
@@ -332,7 +432,7 @@ export function applyOverrides(
   overrides: readonly GraphEdgeOverride[],
   reportStale = true
 ): { edges: FlatEdge[]; diagnostics: GraphDiagnostic[] } {
-  const byInstance = new Map(nodes.map((node) => [node.instanceId, node]));
+  const byInstance = indexByInstance(nodes);
   const result = [...edges];
   const diagnostics: GraphDiagnostic[] = [];
 
@@ -343,21 +443,13 @@ export function applyOverrides(
   const endpointsFor = (
     override: GraphEdgeOverride
   ): { source: ResolvedEndpoint; target: ResolvedEndpoint } | null => {
-    const sourceNode = byInstance.get(override.sourcePath);
-    const targetNode = byInstance.get(override.targetPath);
-    if (!sourceNode || !targetNode) {
-      stale(override, 'names a node that is not in this graph');
+    const resolved = resolveOverrideEndpoints(byInstance, override);
+    if (!resolved.ok) {
+      stale(override, resolved.reason);
       return null;
     }
 
-    const source = findPort(sourceNode, override.sourcePort, 'output');
-    const target = findPort(targetNode, override.targetPort, 'input');
-    if (!source || !target) {
-      stale(override, 'names a port that no longer exists');
-      return null;
-    }
-
-    return { source, target };
+    return { source: resolved.source, target: resolved.target };
   };
 
   const sorted = [...overrides].sort(compareOverrides);

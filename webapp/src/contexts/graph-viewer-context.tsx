@@ -62,6 +62,39 @@ export interface GraphViewerContextValue {
   setFocus: (path: string[]) => void;
   select: (selection: ViewerSelection | null) => void;
   reload: () => void;
+
+  // -------------------------------------------------------------------------
+  // The stored form, for the editor
+  //
+  // The viewer renders the *derived* graph, but the editor edits the records it
+  // came from. These are already in the loaded tree, so exposing them costs no
+  // extra requests — the editor must not refetch what resolution already read.
+  // -------------------------------------------------------------------------
+
+  /** The root graph's own `GraphNodes`, name-ordered. Not the imported ones. */
+  rootNodes: GraphNode[];
+  /** The root graph's `GraphImports`, in `order`. */
+  rootImports: GraphImport[];
+  /**
+   * Every graph record the resolver loaded, by id — the root and its children.
+   *
+   * `loadImportTree` fetches these without `expand`, so an import row cannot
+   * name its child on its own; this is where the import manager reads the
+   * child's label from without a second round trip.
+   */
+  graphsById: Map<string, Graph>;
+  /** The root graph's overrides. Overrides do not inherit. */
+  overrides: GraphEdgeOverride[];
+  /**
+   * Fold one node write into the loaded tree without waiting for realtime.
+   *
+   * Shares the replace-by-id path the `'*'` subscription uses, so an optimistic
+   * write and the echo that follows it collapse onto one record instead of
+   * inserting twice.
+   */
+  applyNodePatch: (action: string, record: GraphNode) => void;
+  /** The same, for the root graph's overrides. */
+  applyOverridePatch: (action: string, record: GraphEdgeOverride) => void;
 }
 
 const EMPTY_VIEW: GraphView = {
@@ -72,6 +105,9 @@ const EMPTY_VIEW: GraphView = {
 };
 
 const EMPTY_OVERRIDES: GraphEdgeOverride[] = [];
+const EMPTY_NODES: GraphNode[] = [];
+const EMPTY_IMPORTS: GraphImport[] = [];
+const EMPTY_GRAPHS: Map<string, Graph> = new Map();
 
 /** One completed load, tagged with the request that produced it. */
 interface LoadedTree {
@@ -137,6 +173,33 @@ export function GraphViewerProvider({
   const loadGeneration = useRef(0);
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
+
+  // Writes fold into the same structures realtime patches, so an optimistic
+  // update and the `'*'` echo that follows it collapse onto one record.
+  const applyNodePatch = useCallback((action: string, record: GraphNode) => {
+    setLoaded((current) =>
+      current
+        ? { ...current, data: patchNode(current.data, action, record) }
+        : current
+    );
+  }, []);
+
+  const applyOverridePatch = useCallback(
+    (action: string, record: GraphEdgeOverride) => {
+      setLoaded((current) =>
+        current
+          ? {
+              ...current,
+              overrides:
+                action === 'delete'
+                  ? current.overrides.filter((row) => row.id !== record.id)
+                  : upsertById(current.overrides, record),
+            }
+          : current
+      );
+    },
+    []
+  );
 
   // -------------------------------------------------------------------------
   // Load
@@ -208,6 +271,17 @@ export function GraphViewerProvider({
 
   const graph = data?.graphs.get(rootId) ?? null;
 
+  // The stored form the editor writes against, straight off the loaded tree.
+  const rootNodes = useMemo(
+    () => data?.nodesByGraph.get(rootId) ?? EMPTY_NODES,
+    [data, rootId]
+  );
+  const rootImports = useMemo(
+    () => data?.importsByParent.get(rootId) ?? EMPTY_IMPORTS,
+    [data, rootId]
+  );
+  const graphsById = useMemo(() => data?.graphs ?? EMPTY_GRAPHS, [data]);
+
   // -------------------------------------------------------------------------
   // Realtime
   // -------------------------------------------------------------------------
@@ -223,6 +297,7 @@ export function GraphViewerProvider({
     // is matched against the resolved set by hand.
     const nodeMutator = new GraphNodeMutator(client);
     const importMutator = new GraphImportMutator(client);
+    const overrideMutator = new GraphEdgeOverrideMutator(client);
 
     const onNode = ({
       action,
@@ -237,11 +312,7 @@ export function GraphViewerProvider({
       // changed underneath us, which the import subscription handles.
       if (!loadedGraphIds.has(record.graph)) return;
 
-      setLoaded((current) =>
-        current
-          ? { ...current, data: patchNode(current.data, action, record) }
-          : current
-      );
+      applyNodePatch(action, record);
     };
 
     const onImport = ({ record }: { action: string; record: GraphImport }) => {
@@ -254,9 +325,24 @@ export function GraphViewerProvider({
       reload();
     };
 
+    // Overrides belong to the root graph alone — they do not inherit — so
+    // anything recorded against a child in the tree is somebody else's context.
+    const onOverride = ({
+      action,
+      record,
+    }: {
+      action: string;
+      record: GraphEdgeOverride;
+    }) => {
+      if (disposed) return;
+      if (record.graph !== rootId) return;
+      applyOverridePatch(action, record);
+    };
+
     const subscriptions = Promise.all([
       nodeMutator.subscribeToCollection(onNode),
       importMutator.subscribeToCollection(onImport),
+      overrideMutator.subscribeToCollection(onOverride),
     ]).catch((cause: unknown) => {
       console.error('Graph realtime subscription failed', cause);
       return [] as (() => void)[];
@@ -270,7 +356,7 @@ export function GraphViewerProvider({
         for (const unsubscribe of unsubscribers) unsubscribe();
       });
     };
-  }, [client, data, reload]);
+  }, [client, data, reload, rootId, applyNodePatch, applyOverridePatch]);
 
   // -------------------------------------------------------------------------
 
@@ -290,6 +376,12 @@ export function GraphViewerProvider({
     setFocus: onFocusChange,
     select: onSelectionChange,
     reload,
+    rootNodes,
+    rootImports,
+    graphsById,
+    overrides,
+    applyNodePatch,
+    applyOverridePatch,
   };
 
   return (
@@ -328,11 +420,18 @@ function patchNode(
   return { ...current, nodesByGraph };
 }
 
-function upsertById(nodes: GraphNode[], record: GraphNode): GraphNode[] {
-  const index = nodes.findIndex((node) => node.id === record.id);
-  if (index === -1) return [...nodes, record];
+/**
+ * Replace a record in place, or append it if it is new.
+ *
+ * The load-bearing half of the dedupe: an optimistic write puts the record in
+ * the list, and the realtime `create` echo that follows finds it by id and
+ * replaces it rather than inserting a second copy.
+ */
+function upsertById<T extends { id: string }>(records: T[], record: T): T[] {
+  const index = records.findIndex((existing) => existing.id === record.id);
+  if (index === -1) return [...records, record];
 
-  const next = [...nodes];
+  const next = [...records];
   next[index] = record;
   return next;
 }
