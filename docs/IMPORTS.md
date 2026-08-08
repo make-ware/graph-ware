@@ -3,8 +3,8 @@
 How one graph reuses another. This is the feature the data model is shaped
 around, so it gets its own document.
 
-Implementation: `webapp/src/schema/graph-import.ts` (the collection),
-`webapp/src/lib/graph/imports.ts` (client-side rules and instance addressing),
+Implementation: `shared/src/schema/graph-import.ts` (the collection),
+`shared/src/lib/graph/imports.ts` (client-side rules and instance addressing),
 `pocketbase/pb_hooks/graph-imports.pb.js` (the authoritative guard).
 
 ## What an import is
@@ -108,7 +108,7 @@ the reuse the whole model exists for, and it is explicitly allowed:
 ```
 
 **Depth.** The longest chain of graphs running through a new import may not
-exceed `MAX_IMPORT_DEPTH` (8, in `webapp/src/lib/graph/primitives.ts`). Depth
+exceed `MAX_IMPORT_DEPTH` (8, in `shared/src/lib/graph/primitives.ts`). Depth
 counts graphs, not edges: everything stacked above the parent, the parent and
 child themselves, and everything hanging below the child. Adding a link in the
 middle of two existing chains can therefore be refused even though neither chain
@@ -124,7 +124,7 @@ lives in a hook:
 |---|---|
 | `pocketbase/pb_hooks/graph-imports.pb.js` | **Authoritative.** Runs on create and update, throws `BadRequestError`. |
 | `pocketbase/pb_hooks/graph-imports-guard.js` | The shared implementation. Not a `*.pb.js` file, so it is not auto-loaded — only `require()`d. |
-| `webapp/src/lib/graph/imports.ts` | **Advisory mirror.** Powers pre-flight checks in the editor and is what the unit tests exercise. |
+| `shared/src/lib/graph/imports.ts` | **Advisory mirror.** Powers pre-flight checks in the editor and is what the unit tests exercise. |
 
 The mirror exists so a refused import produces a specific message instead of a
 bare 400, and so the logic can be tested without a live server. It is not a

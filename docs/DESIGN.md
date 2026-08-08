@@ -110,13 +110,13 @@ PocketBase collections
   Graphs · GraphNodes · GraphImports · GraphEdgeOverrides · PortKinds
         │  PocketBase JS SDK, direct from the browser
         ▼
-webapp/src/mutators/ ──── typed CRUD, filter/sort/expand defaults, realtime
+shared/src/mutators/ ──── typed CRUD, filter/sort/expand defaults, realtime
         │
         ▼
-webapp/src/lib/graph/resolver.ts ──── breadth-first load of the import tree
+shared/src/lib/graph/resolver.ts ──── breadth-first load of the import tree
         │  ResolvedGraph
         ▼
-webapp/src/lib/graph/engine.ts ────── flatten → auto-connect → validate → layout
+shared/src/lib/graph/engine.ts ────── flatten → auto-connect → validate → layout
         │  FlatNode[] / FlatEdge[] / positions / diagnostics
         ▼
 components/graph/graph-canvas.tsx ─── XYFlow rendering
@@ -152,7 +152,7 @@ workspace, one member, and the switcher hides itself.
 The cost is that the rules got long enough to be dangerous, and that the
 same-row semantics of `?=` / `?!=` are the difference between a role model and a
 security hole. Both are answered structurally: the expressions are built once in
-`webapp/src/schema/permissions.ts`, and `yarn db:verify-rules` walks a
+`shared/src/schema/permissions.ts`, and `yarn db:verify-rules` walks a
 three-user, two-workspace matrix against a running server, because no unit test
 can assert a property of PocketBase's filter engine.
 
@@ -176,7 +176,7 @@ an ancestor chain, and "does this import close a loop?" is inherently recursive.
 So it lives in `pocketbase/pb_hooks/graph-imports.pb.js`, which rejects
 self-imports, cycles, and chains deeper than `MAX_IMPORT_DEPTH`.
 
-`webapp/src/lib/graph/imports.ts` mirrors the same rules client-side. That copy
+`shared/src/lib/graph/imports.ts` mirrors the same rules client-side. That copy
 is advisory — it exists so the editor can explain *why* an import is refused
 instead of surfacing a bare 400, and so the logic is unit-testable. The hook is
 the authority. Change one, change the other.

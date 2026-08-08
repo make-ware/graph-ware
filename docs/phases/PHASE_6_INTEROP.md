@@ -58,9 +58,9 @@ which is precisely why it is deferred to Phase 6 rather than done in Phase 2.
 ## Files
 
 ```
-webapp/src/lib/graph/serialize.ts        graph → Node-Ware JSON
-webapp/src/lib/graph/deserialize.ts      JSON → records, with a dry-run plan
-webapp/src/lib/graph/export-image.ts     canvas → SVG/PNG
+shared/src/lib/graph/serialize.ts        graph → Node-Ware JSON
+shared/src/lib/graph/deserialize.ts      JSON → records, with a dry-run plan
+shared/src/lib/graph/export-image.ts     canvas → SVG/PNG
 webapp/src/app/graphs/import/page.tsx    upload, preview, confirm
 webapp/src/components/graph/export-menu.tsx
 scripts/graph-cli.mjs

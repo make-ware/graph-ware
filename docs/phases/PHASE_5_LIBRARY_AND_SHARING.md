@@ -104,13 +104,13 @@ create-and-backfill, then swap the rules.
 ## Files
 
 ```
-webapp/src/schema/workspace.ts
-webapp/src/schema/workspace-member.ts
-webapp/src/schema/graph-version.ts
-webapp/src/mutators/workspace.ts
-webapp/src/mutators/graph-version.ts
-webapp/src/lib/graph/clone.ts            deep or shallow fork
-webapp/src/lib/graph/snapshot.ts         serialize/restore a graph version
+shared/src/schema/workspace.ts
+shared/src/schema/workspace-member.ts
+shared/src/schema/graph-version.ts
+shared/src/mutators/workspace.ts
+shared/src/mutators/graph-version.ts
+shared/src/lib/graph/clone.ts            deep or shallow fork
+shared/src/lib/graph/snapshot.ts         serialize/restore a graph version
 webapp/src/app/(shell)/library/page.tsx
 webapp/src/app/(shell)/workspaces/[slug]/…
 webapp/src/components/graph/editor/version-panel.tsx
@@ -125,8 +125,8 @@ chrome.
 Built as planned, plus these the sketch did not anticipate:
 
 ```
-webapp/src/schema/permissions.ts                  shared access-rule fragments
-webapp/src/mutators/workspace-member.ts
+shared/src/schema/permissions.ts                  shared access-rule fragments
+shared/src/mutators/workspace-member.ts
 webapp/src/contexts/workspace-context.tsx
 webapp/src/hooks/use-workspaces.ts
 webapp/src/components/layout/workspace-switcher.tsx

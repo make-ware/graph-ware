@@ -94,16 +94,24 @@ Full reference: [docs/DATA_MODEL.md](docs/DATA_MODEL.md). Rationale:
 
 ```
 graph-ware/
-├── webapp/              # @project/webapp — Next.js app
+├── shared/              # @project/shared — the domain layer, no build step
 │   └── src/
-│       ├── app/         # routes
 │       ├── schema/      # zod collection definitions + PocketBase access rules
 │       ├── mutators/    # typed CRUD over the PocketBase SDK
 │       ├── services/    # auth operations
+│       ├── types/       # TypedPocketBase
+│       └── lib/
+│           ├── graph/   # value objects, instance paths, import rules, engine
+│           └── client.ts # the PocketBase client factory
+├── webapp/              # @project/webapp — Next.js app
+│   └── src/
+│       ├── app/         # routes
 │       ├── contexts/    # React state + realtime subscriptions
 │       ├── components/  # shadcn/ui primitives in ui/, features alongside
-│       └── lib/
-│           └── graph/   # value objects, instance paths, import rules
+│       └── lib/         # the pb singleton, XYFlow adapter, tailwind helper
+├── cli/                 # @project/cli — `graphware`, for humans and agents
+│   ├── bin/             # tsx launcher; there is no dist/
+│   └── src/commands/    # one module per noun
 ├── pocketbase/          # @project/pb — binary (downloaded), hooks, migrations
 │   ├── pb_hooks/        # server-side JS hooks, incl. the import cycle guard
 │   └── pb_migrations/   # schema migrations (auto-applied on boot)
@@ -113,8 +121,11 @@ graph-ware/
 └── .github/workflows/   # release.yml — release-please + image publishing
 ```
 
-> `@project/shared` is a TypeScript path alias into `webapp/src` (declared in
-> `webapp/tsconfig.json` and `webapp/vitest.config.mjs`), not a separate package.
+> `@project/shared` is **source-only**: its `exports` map points at raw `.ts` and
+> there is no build step. The webapp compiles it through `transpilePackages`,
+> the CLI through tsx. It used to be a tsconfig path alias into `webapp/src`;
+> do not add one back, or the package will be shadowed by a second copy of the
+> schema types.
 
 All data access is **client-side** — the browser talks to PocketBase directly via
 the JS SDK. There are no route handlers or server actions; see
@@ -128,15 +139,16 @@ Run everything from the repo root.
 |--------|-------------|
 | `yarn dev` | Run Next.js + PocketBase concurrently |
 | `yarn build` | Build all workspaces |
-| `yarn test` | Run webapp tests (Vitest) |
+| `yarn test` | Run every workspace's tests (Vitest) |
 | `yarn typecheck` | Type-check all workspaces |
 | `yarn lint` / `yarn format` | Lint-fix / format |
 | `yarn precommit` | Lint + typecheck + format + test — the actual gate |
 | `yarn setup` | (Re)download the PocketBase binary |
+| `yarn cli <command>` | Run the `graphware` CLI — see [cli/README.md](cli/README.md) |
 
 ### Schema and migrations
 
-The zod collection definitions in `webapp/src/schema/` are where fields and API
+The zod collection definitions in `shared/src/schema/` are where fields and API
 rules are *authored*; the files in `pocketbase/pb_migrations/` are what
 PocketBase actually applies on boot. **Editing a zod schema does not change the
 database** — generate a migration for it.
@@ -148,7 +160,7 @@ database** — generate a migration for it.
 | `yarn db:generate` | Write a migration for the pending schema changes |
 | `yarn db:lint` | Catch JS that Node accepts but PocketBase's goja runtime rejects |
 | `yarn db:seed` | Load `example/data/` into a running PocketBase |
-| `yarn typegen` | Generate `webapp/src/types/pocketbase-types.ts` from the schemas |
+| `yarn typegen` | Generate `shared/src/types/pocketbase-types.ts` from the schemas |
 
 `db:status` **exits 0 even when it reports drift** — parse
 `pocketbase-migrate status --json` (`"status": "changes-pending"`) if you want to
@@ -159,14 +171,14 @@ fails on Node 22 with `Cannot require() ES Module … in a cycle`.
 
 ## Adding a collection
 
-1. Define it in `webapp/src/schema/<name>.ts` with `defineCollection` (fields
-   **and** access rules) and export it from `webapp/src/schema/index.ts`.
+1. Define it in `shared/src/schema/<name>.ts` with `defineCollection` (fields
+   **and** access rules) and export it from `shared/src/schema/index.ts`.
 2. `yarn db:status` → `yarn db:generate` to write the migration; restart
    PocketBase to apply it.
-3. Add a `BaseMutator` subclass in `webapp/src/mutators/` and export it from the
+3. Add a `BaseMutator` subclass in `shared/src/mutators/` and export it from the
    barrel.
-4. Add the collection to the `TypedPocketBase` interfaces in
-   `webapp/src/lib/types.ts` **and** `webapp/src/types/index.ts`.
+4. Add the collection to the `TypedPocketBase` interface in
+   `shared/src/types/index.ts`.
 
 Per-user scoping is enforced by PocketBase rules, so mutators set no user filter
 — but a mutator's `create` must inject `owner: pb.authStore.record.id` itself,
@@ -210,7 +222,8 @@ Each release publishes multi-arch images to
 
 **Graph Ware** — [design](docs/DESIGN.md) ·
 [data model](docs/DATA_MODEL.md) · [child graph imports](docs/IMPORTS.md) ·
-[graph engine](docs/GRAPH_ENGINE.md) · [roadmap](docs/phases/README.md)
+[graph engine](docs/GRAPH_ENGINE.md) · [roadmap](docs/phases/README.md) ·
+[CLI](cli/README.md) · [shared package](shared/README.md)
 
 **PocketBase** — [intro](docs/PB_INTRO.md) ·
 [collections](docs/PB_COLLECTIONS.md) · [auth](docs/PB_AUTH.md) ·
