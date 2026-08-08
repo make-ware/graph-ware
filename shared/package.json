@@ -1,0 +1,44 @@
+{
+  "name": "@project/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./mutators": "./src/mutators/index.ts",
+    "./graph": "./src/graph.ts",
+    "./types": "./src/types/index.ts",
+    "./client": "./src/lib/client.ts",
+    "./services": "./src/services/index.ts",
+    "./test-fixtures": "./src/test/fixtures/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": ["src"],
+  "scripts": {
+    "build": "echo 'shared is source-only - consumers transpile it'",
+    "clean": "echo 'shared is source-only - no build output'",
+    "dev": "echo 'shared is source-only - nothing to run'",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,json,md}\" --ignore-path ../.prettierignore",
+    "format:check": "prettier --check \"**/*.{ts,json,md}\" --ignore-path ../.prettierignore",
+    "test": "vitest run --no-coverage",
+    "test:watch": "vitest --watch"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^1.1.5",
+    "pocketbase": "^0.27.0",
+    "pocketbase-zod-schema": "^1.0.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  },
+  "packageManager": "yarn@4.12.0"
+}
