@@ -19,6 +19,8 @@ import {
   toMachineName,
 } from '@project/shared';
 import { GraphImportMutator, GraphMutator } from '@project/shared/mutators';
+import { ImportOverrideEditor } from '@/components/graph/editor/import-override-editor';
+import { ImportVersionPicker } from '@/components/graph/editor/import-version-picker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -153,11 +155,16 @@ function ImportRow({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
               {row.alias}
             </code>
             {!row.enabled && <Badge variant="outline">disabled</Badge>}
+            {row.version && <Badge variant="secondary">pinned</Badge>}
+            {row.attributeOverrides &&
+              Object.keys(row.attributeOverrides).length > 0 && (
+                <Badge variant="secondary">overridden</Badge>
+              )}
           </div>
           <p className="text-muted-foreground mt-1 truncate text-sm">
             {child ? (
@@ -247,6 +254,10 @@ function ImportRow({
           </Label>
         </div>
       </div>
+
+      <ImportVersionPicker row={row} disabled={disabled} />
+
+      <ImportOverrideEditor row={row} disabled={disabled} />
 
       <AliasEditor row={row} disabled={disabled} />
     </li>

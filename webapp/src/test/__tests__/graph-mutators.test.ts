@@ -10,6 +10,7 @@ import {
   createMockPocketBase,
   createMockUser,
   MockAuthStore,
+  notFoundError,
 } from './fixtures/pocketbase';
 
 function setup(signedIn = true) {
@@ -38,6 +39,7 @@ describe('GraphMutator', () => {
 
     const mutator = new GraphMutator(context.pb);
     await mutator.create({
+      workspace: 'workspace_1',
       uid: 'BatterySystem',
       name: 'battery_system',
       label: 'Battery System',
@@ -45,8 +47,50 @@ describe('GraphMutator', () => {
     });
 
     expect(context.collection.create).toHaveBeenCalledWith(
-      expect.objectContaining({ owner: 'user_1', uid: 'BatterySystem' })
+      expect.objectContaining({
+        owner: 'user_1',
+        workspace: 'workspace_1',
+        uid: 'BatterySystem',
+      })
     );
+  });
+
+  it('falls back to the personal workspace when none is given', async () => {
+    context.collection.create.mockResolvedValue({ id: 'graph_1' });
+    context.collection.getFirstListItem.mockResolvedValue({
+      id: 'workspace_personal',
+      personal: true,
+    });
+
+    const mutator = new GraphMutator(context.pb);
+    await mutator.create({
+      uid: 'BatterySystem',
+      name: 'battery_system',
+      label: 'Battery System',
+      visibility: 'private',
+    });
+
+    expect(context.collection.create).toHaveBeenCalledWith(
+      expect.objectContaining({ workspace: 'workspace_personal' })
+    );
+  });
+
+  it('refuses to create a graph with nowhere to put it', async () => {
+    // No personal workspace and no fallback — a broken account rather than a
+    // state to paper over, so the write never leaves the client.
+    context.collection.getFirstListItem.mockRejectedValue(notFoundError());
+
+    const mutator = new GraphMutator(context.pb);
+
+    await expect(
+      mutator.create({
+        uid: 'BatterySystem',
+        name: 'battery_system',
+        label: 'Battery System',
+        visibility: 'private',
+      })
+    ).rejects.toThrow(/not a member of any workspace/i);
+    expect(context.collection.create).not.toHaveBeenCalled();
   });
 
   it('refuses to create a graph while signed out', async () => {

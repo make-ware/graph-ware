@@ -9,7 +9,12 @@
 
 import type { GraphEdgeOverride } from '../../schema/graph-edge-override';
 import type { GraphNode } from '../../schema/graph-node';
-import type { Attribute, NodePosition, Port } from './primitives';
+import type {
+  Attribute,
+  AttributeOverrideMap,
+  NodePosition,
+  Port,
+} from './primitives';
 
 // ---------------------------------------------------------------------------
 // Diagnostics
@@ -25,10 +30,12 @@ export const DIAGNOSTIC_CODES = [
   'required-input-unconnected',
   'unknown-port-kind',
   'stale-override',
+  'stale-attribute-override',
   'child-unreadable',
   'import-disabled',
   'import-cycle',
   'resolution-truncated',
+  'version-unreadable',
 ] as const;
 
 export type DiagnosticCode = (typeof DIAGNOSTIC_CODES)[number];
@@ -52,6 +59,15 @@ export interface ResolvedChild {
   alias: string;
   /** `GraphImports.label`, when the import overrides the child's own label. */
   label?: string;
+  /**
+   * `GraphImports.attributeOverrides` — attribute values this instance replaces
+   * on the subtree below it. Applied by `flattenGraph`, before auto-connect.
+   */
+  attributeOverrides?: AttributeOverrideMap;
+  /** The `GraphVersions` id this import is pinned to, when it is pinned. */
+  versionId?: string;
+  /** `GraphVersions.version` — the number the editor shows as `v3`. */
+  versionNumber?: number;
   graph: ResolvedGraph;
 }
 

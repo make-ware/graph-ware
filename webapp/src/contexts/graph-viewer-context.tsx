@@ -20,6 +20,7 @@ import {
   GraphEdgeOverrideMutator,
   GraphImportMutator,
   GraphNodeMutator,
+  WorkspaceMutator,
 } from '@project/shared/mutators';
 // The resolver is deliberately absent from the `@project/shared` barrel — it
 // takes a PocketBase client — so it is imported by path, as its comment directs.
@@ -46,6 +47,8 @@ export interface SubgraphInstance {
   /** Colour index, matching the nodes on the canvas. */
   graphColorIndex: number;
   nodeCount: number;
+  /** `GraphVersions.version` when this instance is pinned; absent when live. */
+  pinnedVersion?: number;
 }
 
 export interface GraphViewerContextValue {
@@ -55,8 +58,18 @@ export interface GraphViewerContextValue {
   subgraphs: SubgraphInstance[];
   focus: string[];
   selection: ViewerSelection | null;
-  /** False for a public graph belonging to someone else. */
+  /** True when the signed-in user created this graph. History, not authority. */
   isOwner: boolean;
+  /**
+   * True when the signed-in user may write this graph — a member of its
+   * workspace in any role but `viewer`.
+   *
+   * Since Phase 5 this, not `isOwner`, is what the editor gates on: a
+   * teammate's graph in a workspace you share is yours to work on. It is not
+   * the security boundary — the collection rules are — it decides whether the
+   * UI offers a control or a read-only view.
+   */
+  canEdit: boolean;
   isLoading: boolean;
   error: string | null;
   setFocus: (path: string[]) => void;
@@ -158,6 +171,9 @@ export function GraphViewerProvider({
     message: string;
   } | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [writableWorkspaces, setWritableWorkspaces] = useState<Set<string>>(
+    () => new Set()
+  );
 
   const { registry } = usePortKinds();
 
@@ -204,6 +220,32 @@ export function GraphViewerProvider({
   // -------------------------------------------------------------------------
   // Load
   // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    let cancelled = false;
+
+    new WorkspaceMutator(client)
+      .listMine()
+      .then((rows) => {
+        if (cancelled) return;
+        setWritableWorkspaces(
+          new Set(
+            rows
+              .filter((row) => row.role !== 'viewer')
+              .map((row) => row.workspace.id)
+          )
+        );
+      })
+      .catch((cause: unknown) => {
+        // A failure here means the page renders read-only, which is the safe
+        // way to be wrong: every write would be refused by the rules anyway.
+        console.error('Could not load workspace membership', cause);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   useEffect(() => {
     const generation = ++loadGeneration.current;
@@ -364,6 +406,13 @@ export function GraphViewerProvider({
     graph && pb.authStore.record?.id && graph.owner === pb.authStore.record.id
   );
 
+  // Membership is loaded here rather than read from `WorkspaceProvider`: the
+  // viewer lives under `(viewer)`, which is a bare full-bleed layout with no
+  // navigation chrome and therefore no workspace switcher to hang a provider
+  // off. One request per mount, and it does not depend on which layout the
+  // route ends up in.
+  const canEdit = Boolean(graph && writableWorkspaces.has(graph.workspace));
+
   const value: GraphViewerContextValue = {
     graph,
     view,
@@ -371,6 +420,7 @@ export function GraphViewerProvider({
     focus,
     selection,
     isOwner,
+    canEdit,
     isLoading,
     error,
     setFocus: onFocusChange,
@@ -451,7 +501,8 @@ function collectSubgraphs(
     graph: typeof root,
     path: string[],
     label: string,
-    depth: number
+    depth: number,
+    pinnedVersion?: number
   ) => {
     entries.push({
       path,
@@ -460,6 +511,7 @@ function collectSubgraphs(
       depth,
       graphColorIndex: colorIndex++,
       nodeCount: graph.nodes.length,
+      pinnedVersion,
     });
 
     for (const child of graph.children) {
@@ -467,7 +519,8 @@ function collectSubgraphs(
         child.graph,
         [...path, child.alias],
         child.label || child.graph.label,
-        depth + 1
+        depth + 1,
+        child.versionNumber
       );
     }
   };

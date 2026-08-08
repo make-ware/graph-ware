@@ -25,6 +25,7 @@
     "db:generate": "NODE_OPTIONS=\"--import tsx\" pocketbase-migrate generate",
     "db:lint": "NODE_OPTIONS=\"--import tsx\" pocketbase-migrate lint",
     "db:seed": "node scripts/seed-graphs.mjs",
+    "db:verify-rules": "node scripts/verify-workspace-rules.mjs",
     "typegen": "NODE_OPTIONS=\"--import tsx\" pocketbase-migrate generate-types",
     "precommit": "yarn run lint && yarn run typecheck && yarn run format && yarn run test"
   },

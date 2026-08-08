@@ -5,8 +5,11 @@ import type { Graph } from '@/schema/graph';
 import type { GraphEdgeOverride } from '@/schema/graph-edge-override';
 import type { GraphImport } from '@/schema/graph-import';
 import type { GraphNode } from '@/schema/graph-node';
+import type { GraphVersion } from '@/schema/graph-version';
 import type { PortKind } from '@/schema/port-kind';
 import { User } from '@/schema/user';
+import type { Workspace } from '@/schema/workspace';
+import type { WorkspaceMember } from '@/schema/workspace-member';
 import PocketBase from 'pocketbase';
 import type { RecordService } from 'pocketbase';
 
@@ -18,9 +21,12 @@ import type { RecordService } from 'pocketbase';
 // new collection has to be registered in both.
 export interface TypedPocketBase extends PocketBase {
   collection(idOrName: 'Users' | 'users'): RecordService<User>;
+  collection(idOrName: 'Workspaces'): RecordService<Workspace>;
+  collection(idOrName: 'WorkspaceMembers'): RecordService<WorkspaceMember>;
   collection(idOrName: 'Graphs'): RecordService<Graph>;
   collection(idOrName: 'GraphNodes'): RecordService<GraphNode>;
   collection(idOrName: 'GraphImports'): RecordService<GraphImport>;
   collection(idOrName: 'GraphEdgeOverrides'): RecordService<GraphEdgeOverride>;
+  collection(idOrName: 'GraphVersions'): RecordService<GraphVersion>;
   collection(idOrName: 'PortKinds'): RecordService<PortKind>;
 }

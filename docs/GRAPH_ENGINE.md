@@ -17,7 +17,7 @@ live PocketBase.
 
 ```
 ResolvedGraph
-   │  1. flatten
+   │  1. flatten         + apply per-import attribute overrides
    ▼  FlatNode[]
    │  2. filter          (optional: focus one subgraph)
    ▼
@@ -50,8 +50,11 @@ interface ResolvedGraph {
 }
 
 interface ResolvedChild {
-  alias: string;          // GraphImports.alias — the instance key
-  label?: string;         // GraphImports.label
+  alias: string;                          // GraphImports.alias — the instance key
+  label?: string;                         // GraphImports.label
+  attributeOverrides?: AttributeOverrideMap;  // Phase 5
+  versionId?: string;                     // set when this instance is pinned
+  versionNumber?: number;                 // GraphVersions.version, for the UI
   graph: ResolvedGraph;
 }
 ```
@@ -60,6 +63,12 @@ Resolution is breadth-first and batched by depth level; see
 [IMPORTS.md § Resolution](IMPORTS.md#resolution). Disabled imports
 (`enabled: false`) are omitted. Unreadable children are omitted with a warning
 diagnostic rather than failing the render.
+
+A **pinned** child (Phase 5) arrives with its nodes and its own import rows
+taken from a `GraphVersions` snapshot rather than from the live records. That
+happens entirely in the resolver: the engine sees an ordinary `ResolvedGraph`
+and needs to know nothing about versions, which is what keeps pinning out of the
+pipeline below.
 
 ## 1. Flatten
 
@@ -102,6 +111,39 @@ nodes on the root graph**. It is stored per record, so an imported node reports
 the same coordinates under every alias — honouring it below the root would
 stack `port_bank` and `starboard_bank` exactly on top of each other. Imported
 instances are laid out instead.
+
+### Per-import attribute overrides
+
+`ResolvedChild.attributeOverrides` is applied **here**, at the front of the
+pipeline, and not as a later patch on the finished view.
+
+That placement is the whole point. Auto-connect (step 3) evaluates an input
+port's filters against the *source node's* attributes, so an override applied
+any later would change a displayed value without changing the wiring it implies
+— `starboard_bank` would read 24 V on the panel and stay wired as though it were
+12. Overriding a value has to mean overriding what the graph derives from it.
+
+```ts
+flattenGraph(root, diagnostics?)     // diagnostics collects stale-override warnings
+```
+
+Mechanics, in the order they bite:
+
+- Keys are instance ids **relative to the import that declared them**, so one
+  map keeps working however deeply that import is nested. See
+  [IMPORTS.md § Per-import attribute overrides](IMPORTS.md#per-import-attribute-overrides).
+- An override **replaces** an existing attribute and never introduces one.
+- Scopes are applied innermost first, so the **outermost** import wins a
+  conflict.
+- The node's own `attributes` array is never mutated. Both aliases of a
+  twice-imported graph resolve to the same `GraphNode` object; writing through
+  it would leak one instance's override into the other and survive the render.
+- Keys and attribute names that match nothing become
+  `stale-attribute-override` warnings — collected into the optional
+  `diagnostics` array, which `buildGraphView` passes and nothing else needs.
+  It is an out-parameter rather than a second return value because
+  `flattenGraph`'s return type is load-bearing at some thirty call sites and
+  the warnings are wanted at exactly one.
 
 ## 2. Filter
 
@@ -219,11 +261,13 @@ Produced at minimum for:
 |---|---|---|
 | `required-input-unconnected` | error | an `isRequired` input ended with zero edges |
 | `unknown-port-kind` | info | a port names a kind with no `PortKinds` row |
-| `stale-override` | warning | an override matched no node or port |
+| `stale-override` | warning | an edge override matched no node or port |
+| `stale-attribute-override` | warning | an attribute override named no node, or no attribute on it |
 | `child-unreadable` | warning | an imported graph could not be loaded |
 | `import-disabled` | info | a subtree was skipped via `enabled: false` |
 | `import-cycle` | warning | a graph reappeared on its own ancestor chain |
 | `resolution-truncated` | warning | `MAX_IMPORT_DEPTH` or `MAX_RESOLVED_NODES` hit |
+| `version-unreadable` | warning | a pinned import's snapshot could not be read; it resolved live |
 
 `import-cycle` cannot normally happen — `pb_hooks/graph-imports.pb.js` refuses
 to write one. It exists because a malformed database should degrade to a

@@ -33,8 +33,18 @@ yarn db:verify      # which migrations the local DB actually applied (needs pb_d
 yarn db:generate    # write a migration for the pending changes
 yarn db:lint        # catch JS that Node accepts but PocketBase's goja runtime rejects
 yarn db:seed        # load example/data into a *running* PocketBase (needs admin creds)
+yarn db:verify-rules # walk the access-rule matrix against a *running* PocketBase
 yarn typegen        # generate webapp/src/types/pocketbase-types.ts from the schemas
 ```
+
+`db:verify-rules` signs up three users into two workspaces and asserts the whole
+read/write matrix through the ordinary API, with no superuser credentials. It
+exists because the access rules are strings evaluated by PocketBase's filter
+engine, not code this repo runs — in particular, whether
+`members.user ?= me && members.role ?!= "viewer"` is satisfied by *one* roll row
+or by two different ones is the difference between a role model and every viewer
+having write access, and nothing but a real server can answer it. Run it after
+touching anything in `webapp/src/schema/`.
 
 The `db:*` scripts preload tsx via `NODE_OPTIONS="--import tsx"`. Without it the migrate CLI dies on Node 22 with `Cannot require() ES Module … in a cycle`. Don't strip it.
 
@@ -46,9 +56,11 @@ PocketBase alone: `yarn workspace @project/pb dev` (`./pocketbase serve`). Admin
 
 Graph-ware is a flowchart/schematic builder for hardware-like systems. Components declare typed ports; **the wiring between them is derived from port compatibility, not stored**. Design rationale in `docs/DESIGN.md`, collection reference in `docs/DATA_MODEL.md`, reuse semantics in `docs/IMPORTS.md`, the engine contract in `docs/GRAPH_ENGINE.md`, and the phased roadmap in `docs/phases/`.
 
-Five domain collections: `Graphs`, `GraphNodes`, `GraphImports`, `GraphEdgeOverrides`, `PortKinds`.
+Eight domain collections: `Workspaces`, `WorkspaceMembers`, `Graphs`,
+`GraphNodes`, `GraphImports`, `GraphEdgeOverrides`, `GraphVersions`,
+`PortKinds`.
 
-Four rules that everything else follows from:
+Five rules that everything else follows from:
 
 **Edges are not stored.** Connections are computed at render time by matching an output port to inputs of the same `kind`, honouring `one`/`many` relationship budgets and evaluating input-port attribute filters against the *source node's* attributes. The only persisted edge data is `GraphEdgeOverrides`, which patches that result (`pin` / `suppress`) rather than replacing it. Don't add an edge collection; extend port kinds and filters instead.
 
@@ -56,7 +68,9 @@ Four rules that everything else follows from:
 
 **Instance paths, not record ids, identify anything derived.** Because a child can appear twice, one `GraphNodes` record can appear twice in a resolved tree. Flat nodes, edges, diagnostics, layout positions, canvas selection and `GraphEdgeOverrides` endpoints are all keyed by `buildInstanceId(instancePath, nodeId)` — the chain of import aliases plus the node id (`webapp/src/lib/graph/imports.ts`). Reaching for a record id in the derived layer looks correct until something is imported twice, then two components silently collapse into one.
 
-**Hybrid normalization.** Graphs and nodes are records — they need rules, realtime, atomic writes. Ports and attributes are validated JSON *on the node*; they have no independent identity and nothing references them. To change their shape, edit `webapp/src/lib/graph/primitives.ts`, not the schema directory.
+**Hybrid normalization.** Graphs and nodes are records — they need rules, realtime, atomic writes. Ports and attributes are validated JSON *on the node*; they have no independent identity and nothing references them. To change their shape, edit `webapp/src/lib/graph/primitives.ts`, not the schema directory. A `GraphVersions` snapshot is JSON for the same reason plus one more: it is written once, read whole, and never queried field by field.
+
+**A workspace owns a graph; a user created it.** Since Phase 5 every access decision goes through `Graphs.workspace` and its `WorkspaceMembers` roll. `Graphs.owner` survives as provenance and grants nothing. Every user gets a personal workspace on signup — provisioned by `pocketbase/pb_hooks/workspaces.pb.js`, because a client that forgets to create one leaves an account that cannot create anything at all. In the UI, `canEdit` (a non-viewer member of the graph's workspace) is what gates every write control; `isOwner` still exists and decides nothing.
 
 `webapp/src/lib/graph/primitives.ts` must **stay out of `webapp/src/schema/`**: `pocketbase-migrate` imports every file in that directory looking for a `defineCollection` export, and `schema.exclude` has to stay at its default.
 
@@ -77,7 +91,7 @@ Data flows in layers, top to bottom:
 | Contexts | `webapp/src/contexts/*.tsx` | React state, optimistic updates, subscription lifecycle |
 | Components | `webapp/src/components/` | shadcn/ui primitives in `ui/`, feature components alongside |
 
-`webapp/src/lib/graph/resolver.ts` and `engine.ts` sit between mutators and components: the resolver loads an import tree, the engine turns it into flat nodes, edges, diagnostics and positions. The engine must stay pure — no DOM, no network — which is what makes it testable.
+`webapp/src/lib/graph/resolver.ts`, `clone.ts` and `engine.ts` sit between mutators and components: the resolver loads an import tree (resolving pinned imports from their snapshots), `clone.ts` forks one, and the engine turns a resolved tree into flat nodes, edges, diagnostics and positions. The engine must stay pure — no DOM, no network — which is what makes it testable. `resolver.ts` and `clone.ts` take a PocketBase client and are therefore kept out of the `@project/shared` barrel; `snapshot.ts` is pure and is in it, which is why the two networked snapshot operations (`publish`, `restore`) live on `GraphVersionMutator` instead.
 
 ### `@project/shared` is an alias, not a package
 
@@ -87,7 +101,14 @@ It resolves into `webapp/src` and is declared in **two places that must stay in 
 
 `webapp/src/schema/*.ts` is where collection fields and API rules are *authored*, but the database is created from the committed JS migrations in `pocketbase/pb_migrations/`, which PocketBase auto-applies on boot. **Editing a zod schema does not change the database** — run `yarn db:status` to see the drift, then `yarn db:generate` to write the migration.
 
-`pocketbase-migrate.config.mjs` (repo root) points the CLI at `webapp/src/schema` and `pocketbase/pb_migrations`; `schema.exclude` is intentionally left at its default so the `index.ts` barrel stays out of schema discovery. `verify: true` round-trips `up()`/`down()` before writing, so a migration that can't roll back is refused.
+`pocketbase-migrate.config.mjs` (repo root) points the CLI at `webapp/src/schema` and `pocketbase/pb_migrations`; `schema.exclude` is intentionally left at its default so the `index.ts` barrel **and `permissions.ts`** stay out of schema discovery. `verify: true` round-trips `up()`/`down()` before writing, so a migration that can't roll back is refused.
+
+Two things `db:generate` cannot work out on its own, both of which cost real debugging in Phase 5:
+
+- **PocketBase validates an API rule against the schema when the collection is saved.** A collection whose rules traverse a relation cannot be created before that relation exists, and two collections that reference each other (`Workspaces` ↔ `WorkspaceMembers`) have to be created with placeholder rules and joined up in a third migration. Reordering and splitting the generated files is normal when rules change; verify by running `./pocketbase migrate up --dir=/tmp/x` against a **fresh** directory, which is the only thing that catches ordering.
+- **An index name cannot be reused across a swap in one migration** — adding before dropping fails with "The index name already exists". Give the replacement a different name.
+
+A schema change that needs data (adding a required column and pointing existing rows at it) is three migrations, not one: add the column *not required*, backfill, then require it and swap the rules. Test the backfill on a database that actually has rows — `pb_migrations/1786153904_backfill_workspaces.js` is the worked example.
 
 `db:status` **exits 0 even when drift exists**, so never treat it as a gate; parse `pocketbase-migrate status --json` (`"status": "changes-pending"`) for that. `db:verify` and `db:lint` do exit non-zero.
 
@@ -95,13 +116,22 @@ It resolves into `webapp/src` and is declared in **two places that must stay in 
 
 ### Authorization lives in PocketBase rules
 
-Per-user scoping is enforced by collection rules, so mutators intentionally set no user filter. The flip side: `GraphMutator.create` injects `owner: pb.authStore.record.id` itself, because `createRule` requires the field to match the caller. New owner-bearing collections should follow the same pattern.
+Workspace scoping is enforced by collection rules, so mutators intentionally set no user filter. The flip side: `GraphMutator.create` injects both `owner` and `workspace` itself, because `createRule` requires `owner` to match the caller and `workspace` to be one they can write.
 
-Child collections carry **no denormalized `owner`** — `GraphNodes`, `GraphImports` and `GraphEdgeOverrides` resolve ownership through their parent relation (`graph.owner = @request.auth.id`, `parent.owner = @request.auth.id`). A copied owner column is one join cheaper and one more thing that can drift.
+Child collections carry **no denormalized scope column** — `GraphNodes`, `GraphImports`, `GraphEdgeOverrides` and `GraphVersions` resolve through their parent relation (`graph.workspace`, `parent.workspace`). A copied column is one join cheaper and one more thing that can drift.
 
-Read rules admit anything not `private` (`owner = @request.auth.id || visibility != "private"`), so a graph imported from another user's library resolves for the importer. Without that, the parent would be readable and the child would silently resolve to nothing.
+Read rules admit anything not `private` **before** the membership test, so a graph imported from another workspace's library resolves for the importer. Without that, the parent would be readable and the child would silently resolve to nothing.
 
-### Cycle prevention lives in a pb_hook
+The membership expressions are built once in `webapp/src/schema/permissions.ts` (`memberOf` / `writerOf` / `adminOf`) and composed at whatever relation depth a collection needs. Two things about them:
+
+- **`?=` and `?!=` are load-bearing.** A back-relation matches many rows; `members.user ?= me && members.role ?!= "viewer"` only means what it looks like because both conditions resolve against the same join, and therefore the same roll row. Get this wrong and every viewer can write.
+- **`permissions.ts` is on `pocketbase-migrate`'s default `schema.exclude` list**, which is how a file with no `defineCollection` export can live in `webapp/src/schema/`. One more reason that list must stay at its default.
+
+`webapp/src/schema/workspace-member.ts` mirrors the role rules in TypeScript (`roleCanWrite`, `roleCanAdminister`) for the UI. Advisory only — change one, change the other.
+
+### Two things live in pb_hooks
+
+**Cycle prevention.**
 
 PocketBase API rules can follow a relation one level at a time but **cannot walk an ancestor chain**, and "does this import close a loop?" is recursive. So it is enforced in `pocketbase/pb_hooks/graph-imports.pb.js`, which rejects self-imports, cycles, and chains deeper than `MAX_IMPORT_DEPTH`.
 
@@ -114,11 +144,26 @@ Two goja constraints when touching hooks:
 
 Only `*.pb.js` files are auto-loaded as hooks; a plain `.js` file next to them is require-able but inert.
 
+**Personal-workspace provisioning.** `pocketbase/pb_hooks/workspaces.pb.js` gives every new user a workspace and an admin seat on it. This cannot be the client's job: signup goes through the auth endpoint, and a client that forgets the second call leaves an account that can create nothing, because `Graphs.workspace` is required. `pb_migrations/1786153904_backfill_workspaces.js` does the same for users who predate Phase 5 — change one, change the other.
+
+Its hook tag is `'Users'`, **capitalized**: that is the collection's real name, and a hook tag is matched against it exactly. The lowercase `users` that works in SDK calls and URLs is routing sugar. A mistyped tag fails by silently never firing.
+
 ### Auth state
 
 `pb.authStore` is the source of truth; `AuthProvider` (mounted globally in `app/layout.tsx`) mirrors it via `authStore.onChange` and revalidates with `authRefresh()` on mount, every 5 minutes, on window focus, and on `online`. Read auth through `useAuth()`, never by re-reading `authStore` in components.
 
 Feature providers, by contrast, are mounted per-page rather than globally. When a provider combines optimistic updates with a realtime `'*'` subscription, writes can land twice — dedupe by id when adding to that path.
+
+`WorkspaceProvider` is the one exception: it is mounted in the `(shell)` layout, because the active workspace decides what `/graphs` lists and where `/graphs/new` writes, and a choice that reset on every navigation would be worse than no choice. It is **not** mounted in `(viewer)`, which is a bare full-bleed layout — `GraphViewerProvider` loads its own membership for `canEdit` rather than depending on a provider that route does not have.
+
+### Two PocketBase conventions the zod layer does not share
+
+Both bit during Phase 5, and both are invisible from the schema files:
+
+- **PocketBase returns `null` for an unset optional field; zod's `.optional()` rejects `null`.** Feeding a record's own values back into a `create` — which is what forking and restoring do — needs `?? undefined` on every optional JSON field, or validation fails on data the server itself produced.
+- **A JSON field round-trips with its keys sorted.** PocketBase marshals it in Go, which sorts map keys, so `JSON.stringify(fromServer) !== JSON.stringify(justBuilt)` even for identical data. Compare canonically — `snapshotMatches` in `lib/graph/snapshot.ts` is the worked example.
+
+Related: `lib/pocketbase.ts` sets `autoCancellation(false)`. The SDK's default cancel key is `method + path`, so two concurrent reads of the *same collection* would cancel each other — which several `Promise.all` call sites do deliberately. Any script that talks to PocketBase outside the app needs the same setting.
 
 ### Cross-cutting helpers
 
@@ -134,7 +179,9 @@ Vitest + happy-dom with `globals: true`. Tests live in `webapp/src/test/__tests_
 
 No live PocketBase is needed — use `src/test/__tests__/fixtures/pocketbase.ts` (`MockAuthStore`, `createMockPocketBase`, `createMockUser`), which reproduces the `authStore.onChange` behavior contexts depend on.
 
-The graph layer is the part most worth testing, and all of it is pure: value-object parsing (`lib/graph/primitives.ts`), instance addressing and import rules (`lib/graph/imports.ts`), and — once written — the engine. Fixtures should reuse `example/data/*.json`, which already contains the interesting cases: a fan-out fuse (`many` in and out), two competing `one` outputs, and a filtered required input.
+The graph layer is the part most worth testing, and all of it is pure: value-object parsing (`lib/graph/primitives.ts`), instance addressing and import rules (`lib/graph/imports.ts`), the engine, snapshot serialization (`lib/graph/snapshot.ts`) and fork planning (the exported half of `lib/graph/clone.ts`). Fixtures should reuse `example/data/*.json`, which already contains the interesting cases: a fan-out fuse (`many` in and out), two competing `one` outputs, and a filtered required input.
+
+**Access rules are not testable here.** They are strings evaluated by PocketBase's filter engine, so `yarn db:verify-rules` covers them against a running server instead. It is deliberately outside `precommit`, which needs no server — but run it after touching anything in `webapp/src/schema/`.
 
 ## Config and deployment
 

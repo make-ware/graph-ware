@@ -6,6 +6,7 @@ import {
   TextField,
 } from 'pocketbase-zod-schema';
 import { z } from 'zod';
+import { graphReadable, graphWritable } from './permissions';
 
 export const EDGE_OVERRIDE_MODES = ['pin', 'suppress'] as const;
 export type EdgeOverrideMode = (typeof EDGE_OVERRIDE_MODES)[number];
@@ -41,13 +42,11 @@ export const GraphEdgeOverrideCollection = defineCollection({
   collectionName: 'GraphEdgeOverrides',
   schema: GraphEdgeOverrideSchema,
   permissions: {
-    listRule:
-      '@request.auth.id != "" && (graph.owner = @request.auth.id || graph.visibility != "private")',
-    viewRule:
-      '@request.auth.id != "" && (graph.owner = @request.auth.id || graph.visibility != "private")',
-    createRule: '@request.auth.id != "" && graph.owner = @request.auth.id',
-    updateRule: '@request.auth.id != "" && graph.owner = @request.auth.id',
-    deleteRule: '@request.auth.id != "" && graph.owner = @request.auth.id',
+    listRule: graphReadable('graph'),
+    viewRule: graphReadable('graph'),
+    createRule: graphWritable('graph'),
+    updateRule: graphWritable('graph'),
+    deleteRule: graphWritable('graph'),
   },
   indexes: [
     'CREATE INDEX `idx_graph_edge_overrides_graph` ON `GraphEdgeOverrides` (`graph`)',

@@ -2,12 +2,14 @@
 
 import React, { createContext, useCallback, useMemo, useState } from 'react';
 import type {
+  AttributeOverrideMap,
   GraphEdgeOverride,
   GraphEdgeOverrideInput,
   GraphImport,
   GraphInput,
   GraphNode,
   GraphNodeInput,
+  GraphVersion,
   NodePosition,
 } from '@project/shared';
 import { isUnderAlias, rewriteAliasPrefix } from '@project/shared';
@@ -16,6 +18,7 @@ import {
   GraphImportMutator,
   GraphMutator,
   GraphNodeMutator,
+  GraphVersionMutator,
 } from '@project/shared/mutators';
 import { useGraphViewer } from '@/hooks/use-graph-viewer';
 import pb from '@/lib/pocketbase';
@@ -62,6 +65,17 @@ export interface GraphEditorContextValue {
   aliasRenameImpact: (alias: string) => AliasRenameImpact;
   removeImport: (id: string) => Promise<void>;
   moveImport: (id: string, direction: -1 | 1) => Promise<void>;
+  /** Pin an import to a version, or pass `null` to follow the child again. */
+  pinImport: (id: string, versionId: string | null) => Promise<void>;
+  /** Replace an import's per-instance attribute overrides. */
+  setImportOverrides: (
+    id: string,
+    overrides: AttributeOverrideMap
+  ) => Promise<void>;
+
+  // Versions
+  publishVersion: (note?: string) => Promise<GraphVersion>;
+  restoreVersion: (version: GraphVersion) => Promise<void>;
 
   // Overrides
   createOverride: (
@@ -112,6 +126,7 @@ export function GraphEditorProvider({
       nodes: new GraphNodeMutator(client),
       imports: new GraphImportMutator(client),
       overrides: new GraphEdgeOverrideMutator(client),
+      versions: new GraphVersionMutator(client),
     }),
     [client]
   );
@@ -373,6 +388,69 @@ export function GraphEditorProvider({
     [mutators, rootImports, tracked, reload]
   );
 
+  /**
+   * Pin an import to a snapshot, or unpin it.
+   *
+   * A reload rather than a patch: pinning changes which *records* the resolver
+   * loads for that subtree, so the loaded tree has to be rebuilt — the same
+   * reason `addImport` reloads.
+   */
+  const pinImport = useCallback(
+    async (id: string, versionId: string | null) => {
+      await tracked(() => mutators.imports.setVersion(id, versionId));
+      reload();
+    },
+    [mutators, tracked, reload]
+  );
+
+  const setImportOverrides = useCallback(
+    async (id: string, overrides: AttributeOverrideMap) => {
+      await tracked(() =>
+        mutators.imports.setAttributeOverrides(id, overrides)
+      );
+      reload();
+    },
+    [mutators, tracked, reload]
+  );
+
+  // -------------------------------------------------------------------------
+  // Versions
+  // -------------------------------------------------------------------------
+
+  /**
+   * Freeze the graph as it stands.
+   *
+   * Reads the stored form off the viewer rather than refetching it: resolution
+   * has already loaded exactly these records, and a snapshot taken from a
+   * second fetch could differ from what the user is looking at.
+   */
+  const publishVersion = useCallback(
+    async (note?: string) => {
+      if (!graph) throw new Error('The graph has not finished loading.');
+      return await tracked(() =>
+        mutators.versions.publish(graph, rootNodes, rootImports, note)
+      );
+    },
+    [graph, mutators, rootNodes, rootImports, tracked]
+  );
+
+  const restoreVersion = useCallback(
+    async (version: GraphVersion) => {
+      if (!graph) throw new Error('The graph has not finished loading.');
+
+      await tracked(() =>
+        mutators.versions.restore(graph, version, {
+          nodes: rootNodes,
+          imports: rootImports,
+        })
+      );
+      // A restore rewrites nodes *and* imports, so the tree is re-resolved
+      // rather than patched — the import list may name graphs never loaded.
+      reload();
+    },
+    [graph, mutators, rootNodes, rootImports, tracked, reload]
+  );
+
   // -------------------------------------------------------------------------
   // Overrides
   // -------------------------------------------------------------------------
@@ -413,6 +491,10 @@ export function GraphEditorProvider({
     aliasRenameImpact,
     removeImport,
     moveImport,
+    pinImport,
+    setImportOverrides,
+    publishVersion,
+    restoreVersion,
     createOverride,
     deleteOverride,
   };

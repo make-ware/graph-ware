@@ -50,7 +50,7 @@ function chainBundle(length: number): ResolvedGraphData {
     }
   }
 
-  return { graphs, nodesByGraph, importsByParent };
+  return { graphs, nodesByGraph, importsByParent, pins: new Map() };
 }
 
 describe('assembleResolvedGraph — the sample tree', () => {
@@ -87,6 +87,7 @@ describe('assembleResolvedGraph — the sample tree', () => {
       graphs: new Map(),
       nodesByGraph: new Map(),
       importsByParent: new Map(),
+      pins: new Map(),
     });
 
     expect(graph).toBeNull();

@@ -2,6 +2,7 @@ import { RecordService } from 'pocketbase';
 import { type Graph, type GraphInput, GraphInputSchema } from '../schema/graph';
 import type { TypedPocketBase } from '../types';
 import { BaseMutator, type MutatorOptions } from './base';
+import { WorkspaceMutator } from './workspace';
 
 export class GraphMutator extends BaseMutator<Graph, GraphInput> {
   constructor(pb: TypedPocketBase, options?: Partial<MutatorOptions>) {
@@ -27,8 +28,13 @@ export class GraphMutator extends BaseMutator<Graph, GraphInput> {
   }
 
   /**
-   * The create rule requires `owner` to equal the caller, so it has to be sent
-   * explicitly — PocketBase does not fill it in.
+   * The create rule requires both `owner` and a writable `workspace`, so both
+   * have to be sent explicitly — PocketBase does not fill either in.
+   *
+   * `workspace` may be passed by the caller (creating into a team) or left out,
+   * in which case the caller's personal workspace is used. A caller with no
+   * workspace at all cannot create a graph; that is a broken account rather
+   * than a state to paper over, so it throws.
    */
   protected async entityCreate(data: GraphInput): Promise<Graph> {
     const userId = this.pb.authStore.record?.id;
@@ -36,10 +42,27 @@ export class GraphMutator extends BaseMutator<Graph, GraphInput> {
       throw new Error('Cannot create a graph while signed out');
     }
 
-    return await this.getCollection().create({ ...data, owner: userId });
+    const workspace = data.workspace || (await this.defaultWorkspace());
+    if (!workspace) {
+      throw new Error(
+        'You are not a member of any workspace, so there is nowhere to put this graph.'
+      );
+    }
+
+    return await this.getCollection().create({
+      ...data,
+      workspace,
+      owner: userId,
+    });
   }
 
-  /** Graphs owned by the signed-in user, newest namespace grouping first. */
+  /** The caller's personal workspace id, or null if they somehow have none. */
+  private async defaultWorkspace(): Promise<string | null> {
+    const personal = await new WorkspaceMutator(this.pb).personal();
+    return personal?.id ?? null;
+  }
+
+  /** Graphs created by the signed-in user. */
   async listMine(page = 1, perPage = 200) {
     const userId = this.pb.authStore.record?.id;
     if (!userId) {
@@ -49,9 +72,71 @@ export class GraphMutator extends BaseMutator<Graph, GraphInput> {
     return await this.getList(page, perPage, `owner = "${userId}"`);
   }
 
+  /**
+   * Graphs in one workspace.
+   *
+   * Since Phase 5 this — not `listMine` — is what "my graphs" means: a
+   * teammate's graph in a workspace you share is yours to work on, and one you
+   * created before joining a team is not something you lose.
+   */
+  async listForWorkspace(workspaceId: string, page = 1, perPage = 200) {
+    return await this.getList(page, perPage, `workspace = "${workspaceId}"`);
+  }
+
+  /** Graphs in several workspaces at once — the "all my workspaces" view. */
+  async listForWorkspaces(
+    workspaceIds: readonly string[],
+    page = 1,
+    perPage = 500
+  ) {
+    if (!workspaceIds.length) {
+      return { page: 1, perPage, totalItems: 0, totalPages: 0, items: [] };
+    }
+
+    const filter = workspaceIds.map((id) => `workspace = "${id}"`).join(' || ');
+    return await this.getList(page, perPage, `(${filter})`);
+  }
+
   /** Graphs published by anyone — the shared library. */
   async listPublic(page = 1, perPage = 200) {
     return await this.getList(page, perPage, 'visibility = "public"');
+  }
+
+  /**
+   * The library query: published graphs, optionally narrowed by free text and
+   * tags.
+   *
+   * Tags are a JSON array, which PocketBase can only match with `~`
+   * (substring). That over-matches — the tag `power` also matches `powerwall` —
+   * so the filter is a *pre-filter* the caller narrows exactly in memory. Doing
+   * it server-side first is still worth it: it keeps the page from downloading
+   * a library to search three of it.
+   */
+  async searchPublic(
+    options: { text?: string; tags?: readonly string[] } = {},
+    page = 1,
+    perPage = 200
+  ) {
+    const clauses = ['visibility = "public"'];
+
+    const text = options.text?.trim();
+    if (text) {
+      const escaped = text.replace(/"/g, '');
+      clauses.push(
+        `(label ~ "${escaped}" || name ~ "${escaped}" || uid ~ "${escaped}" || description ~ "${escaped}")`
+      );
+    }
+
+    for (const tag of options.tags ?? []) {
+      clauses.push(`tags ~ "${tag.replace(/"/g, '')}"`);
+    }
+
+    return await this.getList(page, perPage, clauses.join(' && '));
+  }
+
+  /** Forks recorded against a graph — provenance, shown on its library card. */
+  async listForks(graphId: string, page = 1, perPage = 100) {
+    return await this.getList(page, perPage, `forkedFrom = "${graphId}"`);
   }
 
   /**

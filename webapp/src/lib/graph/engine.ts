@@ -12,8 +12,13 @@
 // Reference: docs/GRAPH_ENGINE.md
 
 import { portFiltersPass } from './filters';
-import { buildInstanceId } from './imports';
-import { DEFAULT_PORT_RELATIONSHIP, type Port } from './primitives';
+import { buildInstanceId, formatInstancePath } from './imports';
+import {
+  DEFAULT_PORT_RELATIONSHIP,
+  type Attribute,
+  type AttributeOverrideMap,
+  type Port,
+} from './primitives';
 import { layoutGraph } from './layout';
 import type { GraphEdgeOverride } from '../../schema/graph-edge-override';
 import type {
@@ -115,21 +120,137 @@ function budgetKey(instanceId: string, portIndex: number): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Every node in the tree, with its provenance.
+ * One import's `attributeOverrides`, tracked while its subtree is walked.
+ *
+ * Keys are instance ids *relative to the import that declared them*, so the
+ * same map keeps working however deeply that import is nested — see
+ * `AttributeOverrideMapSchema` in `./primitives`.
+ */
+interface OverrideScope {
+  /** The instance path of the import that declared this map. */
+  base: string[];
+  /** Its breadcrumb, for a diagnostic that can say where the map lives. */
+  breadcrumb: string[];
+  map: AttributeOverrideMap;
+  /** Keys that addressed a node that exists. */
+  matchedKeys: Set<string>;
+  /** `key#attribute` pairs that addressed an attribute that exists. */
+  matchedAttributes: Set<string>;
+}
+
+/**
+ * Apply every active override scope to one node's attributes.
+ *
+ * **Innermost first, so the outermost import wins.** A parent overriding
+ * `b/NODE:voltage` is speaking about this exact instance in the system it owns;
+ * the child's own override of `NODE:voltage` is a default it set for every
+ * context. When both name the same attribute the more contextual instruction
+ * should be the one that lands.
+ *
+ * Returns the node's own array untouched when nothing matched, so an unimported
+ * graph pays nothing for this.
+ */
+function applyAttributeOverrides(
+  attributes: readonly Attribute[],
+  instancePath: readonly string[],
+  nodeId: string,
+  scopes: readonly OverrideScope[]
+): Attribute[] {
+  let result: Attribute[] | null = null;
+
+  for (let index = scopes.length - 1; index >= 0; index--) {
+    const scope = scopes[index];
+    const key = buildInstanceId(instancePath.slice(scope.base.length), nodeId);
+    const patch = scope.map[key];
+    if (!patch) continue;
+
+    scope.matchedKeys.add(key);
+
+    for (const [name, value] of Object.entries(patch)) {
+      const current: Attribute[] = result ?? [...attributes];
+      const at = current.findIndex((attribute) => attribute.name === name);
+      // An override replaces a value; it never introduces an attribute. A new
+      // one would need a `kind` the override has nowhere to put, and a typo
+      // would quietly become data instead of a warning.
+      if (at === -1) continue;
+
+      scope.matchedAttributes.add(`${key}#${name}`);
+      current[at] = { ...current[at], value };
+      result = current;
+    }
+  }
+
+  return result ?? [...attributes];
+}
+
+/** Diagnostics for override keys that addressed nothing in the resolved tree. */
+function staleOverrideDiagnostics(
+  scopes: readonly OverrideScope[]
+): GraphDiagnostic[] {
+  const diagnostics: GraphDiagnostic[] = [];
+
+  for (const scope of scopes) {
+    const where = formatInstancePath(scope.base);
+
+    for (const [key, patch] of Object.entries(scope.map)) {
+      if (!scope.matchedKeys.has(key)) {
+        diagnostics.push({
+          level: 'warning',
+          code: 'stale-attribute-override',
+          message: `The attribute override on "${where}" names ${key}, which is not a node in that subtree.`,
+          path: [...scope.breadcrumb],
+        });
+        continue;
+      }
+
+      for (const name of Object.keys(patch)) {
+        if (scope.matchedAttributes.has(`${key}#${name}`)) continue;
+        diagnostics.push({
+          level: 'warning',
+          code: 'stale-attribute-override',
+          message: `The attribute override on "${where}" sets "${name}" on ${key}, which has no attribute by that name.`,
+          path: [...scope.breadcrumb],
+        });
+      }
+    }
+  }
+
+  return diagnostics;
+}
+
+/**
+ * Every node in the tree, with its provenance and its per-import overrides
+ * already applied.
  *
  * Depth-first: a graph's own nodes (name-ordered) come before its children's.
  * `graphColorIndex` counts *instances*, not graphs, so `port_bank` and
  * `starboard_bank` are two visual groups even though they are one
  * `BatterySystem`.
+ *
+ * Overrides land **here**, at the front of the pipeline, and not as a later
+ * patch on the finished view. Auto-connect evaluates input-port filters against
+ * a source node's attributes, so an override applied any later would change a
+ * displayed value without changing the wiring it implies — which is precisely
+ * the case `starboard_bank` at 24 V exists to exercise.
+ *
+ * `diagnostics`, when supplied, collects `stale-attribute-override` warnings.
+ * It is an out-parameter rather than a second return value because the return
+ * type of this function is load-bearing at thirty-odd call sites and the
+ * warnings are wanted at exactly one of them.
  */
-export function flattenGraph(root: ResolvedGraph): FlatNode[] {
+export function flattenGraph(
+  root: ResolvedGraph,
+  diagnostics?: GraphDiagnostic[]
+): FlatNode[] {
   const flat: FlatNode[] = [];
+  const scopes: OverrideScope[] = [];
   let nextColorIndex = 0;
 
   const walk = (
     graph: ResolvedGraph,
     instancePath: string[],
-    breadcrumb: string[]
+    breadcrumb: string[],
+    active: OverrideScope[]
   ): void => {
     const graphColorIndex = nextColorIndex++;
 
@@ -153,7 +274,14 @@ export function flattenGraph(root: ResolvedGraph): FlatNode[] {
         graphNamespace: graph.namespace,
         breadcrumb: [...breadcrumb],
         graphColorIndex,
-        attributes: node.attributes ?? [],
+        attributes: active.length
+          ? applyAttributeOverrides(
+              node.attributes ?? [],
+              instancePath,
+              node.id,
+              active
+            )
+          : (node.attributes ?? []),
         ports: node.ports ?? [],
         // A manual position is stored on the *record*, so an imported node
         // carries the same one under every alias — honouring it below the root
@@ -164,15 +292,30 @@ export function flattenGraph(root: ResolvedGraph): FlatNode[] {
     }
 
     for (const child of graph.children) {
-      walk(
-        child.graph,
-        [...instancePath, child.alias],
-        [...breadcrumb, child.label || child.graph.label]
-      );
+      const childPath = [...instancePath, child.alias];
+      const childBreadcrumb = [...breadcrumb, child.label || child.graph.label];
+
+      let childScopes = active;
+      if (child.attributeOverrides) {
+        const scope: OverrideScope = {
+          base: childPath,
+          breadcrumb: childBreadcrumb,
+          map: child.attributeOverrides,
+          matchedKeys: new Set(),
+          matchedAttributes: new Set(),
+        };
+        scopes.push(scope);
+        childScopes = [...active, scope];
+      }
+
+      walk(child.graph, childPath, childBreadcrumb, childScopes);
     }
   };
 
-  walk(root, [], [root.label]);
+  walk(root, [], [root.label], []);
+
+  if (diagnostics) diagnostics.push(...staleOverrideDiagnostics(scopes));
+
   return flat;
 }
 
@@ -570,7 +713,8 @@ export function buildGraphView(
   options: EngineOptions = {}
 ): GraphView {
   const focus = options.focus ?? [];
-  const nodes = focusNodes(flattenGraph(root), focus);
+  const flattenDiagnostics: GraphDiagnostic[] = [];
+  const nodes = focusNodes(flattenGraph(root, flattenDiagnostics), focus);
   const derived = connectNodes(nodes, options.portKinds);
 
   const { edges, diagnostics: overrideDiagnostics } = applyOverrides(
@@ -585,6 +729,7 @@ export function buildGraphView(
     edges,
     diagnostics: [
       ...(options.diagnostics ?? []),
+      ...flattenDiagnostics,
       ...overrideDiagnostics,
       ...validateGraph(nodes, edges, options.portKinds),
     ],

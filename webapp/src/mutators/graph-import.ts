@@ -9,6 +9,7 @@ import {
   nextAvailableAlias,
   type ImportEdge,
 } from '../lib/graph/imports';
+import type { AttributeOverrideMap } from '../lib/graph/primitives';
 import type { TypedPocketBase } from '../types';
 import { BaseMutator, type MutatorOptions } from './base';
 
@@ -121,5 +122,43 @@ export class GraphImportMutator extends BaseMutator<
   private async defaultAliasFor(childId: string): Promise<string> {
     const child = await this.pb.collection('Graphs').getOne(childId);
     return this.toSnakeCase(child.name || child.uid || 'child');
+  }
+
+  /**
+   * Pin an import to a version, or unpin it.
+   *
+   * `null` has to be sent to clear the relation: an `undefined` key is dropped
+   * from the request payload and the field survives — the same trap
+   * `resetLayout` hits with `position`.
+   */
+  async setVersion(id: string, versionId: string | null): Promise<GraphImport> {
+    return await this.update(id, {
+      version: (versionId ?? null) as unknown as string,
+    });
+  }
+
+  /**
+   * Replace an import's attribute overrides.
+   *
+   * The whole map is written at once because it is one JSON field: there is no
+   * per-entry write, and a read-modify-write from two tabs loses the older
+   * edit. That is the same last-write-wins the rest of the editor has.
+   */
+  async setAttributeOverrides(
+    id: string,
+    overrides: AttributeOverrideMap
+  ): Promise<GraphImport> {
+    const isEmpty = Object.keys(overrides).length === 0;
+    return await this.update(id, {
+      attributeOverrides: (isEmpty
+        ? null
+        : overrides) as unknown as AttributeOverrideMap,
+    });
+  }
+
+  /** Every import in this tree that carries a pin, keyed by import id. */
+  async listPinned(parentIds: readonly string[]): Promise<GraphImport[]> {
+    const records = await this.listForParents(parentIds);
+    return records.filter((record) => Boolean(record.version));
   }
 }
