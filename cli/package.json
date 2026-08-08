@@ -1,0 +1,44 @@
+{
+  "name": "@project/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Command-line client for graph-ware, for humans and agents.",
+  "bin": {
+    "graphware": "./bin/graphware.js"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "scripts": {
+    "start": "node ./bin/graphware.js",
+    "dev": "node ./bin/graphware.js",
+    "build": "echo 'cli runs from source via tsx - no build step'",
+    "clean": "echo 'cli has no build output'",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,js,json,md}\" --ignore-path ../.prettierignore",
+    "format:check": "prettier --check \"**/*.{ts,js,json,md}\" --ignore-path ../.prettierignore",
+    "test": "vitest run --no-coverage",
+    "test:watch": "vitest --watch"
+  },
+  "dependencies": {
+    "@project/shared": "workspace:^",
+    "pocketbase": "^0.27.0",
+    "tsx": "^4.21.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "packageManager": "yarn@4.12.0"
+}

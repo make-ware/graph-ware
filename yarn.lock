@@ -1329,6 +1329,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@project/cli@workspace:cli":
+  version: 0.0.0-use.local
+  resolution: "@project/cli@workspace:cli"
+  dependencies:
+    "@project/shared": "workspace:^"
+    "@types/node": "npm:^20.19.43"
+    eslint: "npm:^9.39.5"
+    pocketbase: "npm:^0.27.0"
+    prettier: "npm:^3.9.6"
+    tsx: "npm:^4.21.0"
+    typescript: "npm:^5.9.3"
+    vitest: "npm:^4.1.10"
+    zod: "npm:^4.4.3"
+  bin:
+    graphware: ./bin/graphware.js
+  languageName: unknown
+  linkType: soft
+
 "@project/pb@workspace:pocketbase":
   version: 0.0.0-use.local
   resolution: "@project/pb@workspace:pocketbase"

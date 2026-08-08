@@ -7,6 +7,13 @@ import { withRetry } from '../lib/retry';
 import { UserMutator } from '../mutators/user';
 import type { TypedPocketBase } from '../types';
 
+/** The sliver of the Web Storage API `logout()` touches. */
+interface WebStorage {
+  readonly length: number;
+  key(index: number): string | null;
+  removeItem(key: string): void;
+}
+
 /**
  * Authentication service that uses mutators and provides high-level auth operations
  */
@@ -65,20 +72,26 @@ export class AuthService {
     try {
       this.pb.authStore.clear();
 
-      // Clear any additional session storage if needed. Browser-only, and dead
-      // code under the CLI — which persists its token through an AsyncAuthStore
-      // that `authStore.clear()` above already flushes.
-      if (typeof window !== 'undefined') {
+      // Clear any additional session storage. Browser-only, and a no-op under
+      // the CLI, which persists its token through an AsyncAuthStore that
+      // `authStore.clear()` above already flushes.
+      //
+      // Reached through `globalThis` rather than the bare `window` and
+      // `localStorage` globals so this file needs no DOM lib — which is what
+      // lets the package typecheck from a headless consumer.
+      const storage = (globalThis as { localStorage?: WebStorage })
+        .localStorage;
+      if (storage) {
         try {
           // Remove any app-specific localStorage items
           const keysToRemove: string[] = [];
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
+          for (let i = 0; i < storage.length; i++) {
+            const key = storage.key(i);
             if (key && key.startsWith('app_')) {
               keysToRemove.push(key);
             }
           }
-          keysToRemove.forEach((key) => localStorage.removeItem(key));
+          keysToRemove.forEach((key) => storage.removeItem(key));
         } catch (error) {
           console.warn('Error clearing additional session data:', error);
         }

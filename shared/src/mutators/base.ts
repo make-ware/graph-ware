@@ -406,14 +406,17 @@ export abstract class BaseMutator<T extends RecordModel, InputType> {
   ): R {
     const { allowNotFound = false, returnValue, logError = true } = options;
 
+    // Handle 404 errors if allowed. Deliberately *before* the log: a caller
+    // that passed `allowNotFound` is asking a question whose answer may be
+    // "no such record", so a stack trace is noise. It spams the browser console
+    // on every miss, and on the CLI it lands on stderr beside the result.
+    if (allowNotFound && this.isNotFoundError(error)) {
+      return null as R;
+    }
+
     // Log the error if requested
     if (logError) {
       console.error(`Error in ${this.constructor.name}:`, error);
-    }
-
-    // Handle 404 errors if allowed
-    if (allowNotFound && this.isNotFoundError(error)) {
-      return null as R;
     }
 
     // Return specified value or rethrow
