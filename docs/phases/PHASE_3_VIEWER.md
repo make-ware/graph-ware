@@ -1,6 +1,6 @@
 # Phase 3 — Viewer
 
-**Status: planned.** Depends on Phase 2.
+**Status: done.**
 
 ## Goal
 
@@ -64,6 +64,24 @@ webapp/src/components/graph/port-badge.tsx
 webapp/src/hooks/use-graph-viewer.ts
 ```
 
+Built as planned, plus two files the sketch did not anticipate:
+
+```
+webapp/src/lib/graph/flow-adapter.ts             GraphView → XYFlow, pure
+webapp/src/components/graph/subgraph-palette.ts  graphColorIndex → theme tokens
+```
+
+`flow-adapter.ts` is where the canvas becomes testable — ReactFlow measures the
+DOM and happy-dom has no `ResizeObserver`, so the mapping is asserted directly
+and `<ReactFlow>` is never mounted in a test. It stays out of the
+`@project/shared` barrel for the same reason the resolver does: it has a
+dependency (`@xyflow/react`) that the barrel should not drag in.
+
+Routing moved into two route groups, `(shell)` and `(viewer)`, because
+`NavigationBar` was mounted in the root layout and a nested layout cannot remove
+an ancestor's chrome. `/graphs` and `/graphs/[id]` resolving from different
+groups is legal — verified by `next build`.
+
 shadcn/ui primitives already in `components/ui/` cover the panels: `card`,
 `badge`, `scroll-area`, `resizable`, `tabs`, `separator`, `tooltip`.
 
@@ -84,26 +102,57 @@ standard nav chrome; every other page keeps the existing shell.
 
 ## Acceptance criteria
 
-- [ ] `/graphs` lists the seeded graphs with correct node and import counts.
-- [ ] `/graphs/[testDataElement]` renders both battery banks as visually
+All verified against a seeded database driven through a real browser.
+
+- [x] `/graphs` lists the seeded graphs with correct node and import counts
+      (`testDataElement` 0/3, `BatterySystem` 3/0, `EngineSystem` 1/0).
+- [x] `/graphs/[testDataElement]` renders both battery banks as visually
       distinct groups.
-- [ ] Focusing `port_bank` shows only its nodes; `starboard_bank` shows a
+- [x] Focusing `port_bank` shows only its nodes; `starboard_bank` shows a
       different set of the same components.
-- [ ] Port and edge colours come from `PortKinds`; a port with an unregistered
+- [x] Port and edge colours come from `PortKinds`; a port with an unregistered
       kind renders in the fallback colour and produces an `unknown-port-kind`
       info diagnostic.
-- [ ] The Cerbo GX's unconnected required input shows as an error diagnostic
-      that navigates to the node.
-- [ ] Editing a node in the PocketBase admin UI updates the open canvas without
-      a reload.
-- [ ] Opening a `public` graph owned by another user renders read-only, with no
+- [x] The Cerbo GX's unconnected required input shows as an error diagnostic
+      that navigates to the node — see the note below on when it fires.
+- [x] Editing a node in the PocketBase admin UI updates the open canvas without
+      a reload. One record edit updates *both* instances of a twice-imported
+      node.
+- [x] Opening a `public` graph owned by another user renders read-only, with no
       edit affordances.
-- [ ] `yarn precommit` passes.
+- [x] `yarn precommit` passes.
 
-## Open questions
+### On the Cerbo GX diagnostic
 
-- **How much of the tree renders at once?** A deeply nested system could produce
-  hundreds of nodes. Collapsing subgraphs into a single summary node may be
-  necessary; decide after seeing real data.
-- **Should edges be selectable when derived?** They have no record to open,
-  only computed provenance.
+In the **whole** `testDataElement` tree the Cerbo's required `supply` input is
+*connected* — the battery bank's fuse has a `many` power output that reaches it,
+which is the engine working correctly. The diagnostic fires when the engine bay
+is looked at on its own: `?focus=control`, or `/graphs/[EngineSystem]` as its own
+root. Worth knowing, because it makes the diagnostic a property of the current
+view rather than of the stored data.
+
+## Answered questions
+
+- **How much of the tree renders at once?** Everything, for now. Focus by
+  instance path is the scaling tool, and `MAX_RESOLVED_NODES` (2000) plus the
+  `resolution-truncated` diagnostic backstop the pathological case. Revisit
+  collapsing when there is a real system big enough to need it.
+- **Should edges be selectable when derived?** Yes, both derived and pinned.
+  The detail panel shows endpoints, kind and provenance, and says outright that
+  a derived edge has no stored record. Phase 4 hangs "suppress this connection"
+  off the same selection, so building it now avoids a rework.
+
+## Notes for Phase 4
+
+- `GraphViewerProvider` splits the async load from the synchronous engine run so
+  focus changes never refetch. Realtime patches replace nodes **by id**, which
+  is what keeps optimistic updates from double-inserting against the `'*'`
+  subscription.
+- A `GraphImports` change triggers a full re-resolve rather than a patch: a new
+  import can pull in a graph that was never loaded.
+- `isOwner` is already on the context; gate edit affordances on it.
+- Canvas nodes declare `width`/`height` rather than being measured. The canvas
+  is controlled without `onNodesChange`, so XYFlow cannot write measured
+  dimensions back — anything reading them off a node (the minimap did) sees
+  nothing. Adding drag in Phase 4 means adding `onNodesChange` and revisiting
+  this.

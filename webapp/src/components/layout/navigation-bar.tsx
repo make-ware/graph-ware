@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Menu, LogOut, Settings } from 'lucide-react';
+import { Menu, LogOut, Network, Settings } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
@@ -54,6 +54,7 @@ export function NavigationBar({ className }: NavigationBarProps) {
 
   // Navigation links for authenticated users
   const authenticatedLinks = [
+    { href: '/graphs', label: 'Graphs', icon: Network },
     { href: '/profile', label: 'Profile', icon: Settings },
   ];
 

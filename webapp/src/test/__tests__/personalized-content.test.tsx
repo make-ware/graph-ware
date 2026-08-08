@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { AuthContext } from '@/contexts/auth-context';
-import Home from '@/app/page';
+import Home from '@/app/(shell)/page';
 
 // Property test generator for user data
 function generateRandomUser() {
