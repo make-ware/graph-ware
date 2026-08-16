@@ -118,7 +118,7 @@ export function ImportVersionPicker({
           disabled={disabled || isPinning || versions === null}
         >
           <SelectTrigger
-            className="h-8 w-56"
+            className="h-8 min-w-0 flex-1 sm:w-56 sm:flex-none"
             aria-label={`Version pinned for ${row.alias}`}
           >
             <SelectValue />

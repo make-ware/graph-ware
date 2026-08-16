@@ -1,5 +1,6 @@
 'use client';
 
+import { useContext } from 'react';
 import Link from 'next/link';
 import { Building2, Check, ChevronDown, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useWorkspaces } from '@/hooks/use-workspaces';
+import { WorkspaceContext } from '@/contexts/workspace-context';
 import { cn } from '@/lib/utils';
 
 /**
@@ -22,7 +23,16 @@ import { cn } from '@/lib/utils';
  * nothing to a user who does not have teammates.
  */
 export function WorkspaceSwitcher({ className }: { className?: string }) {
-  const { memberships, active, role, setActive, isLoading } = useWorkspaces();
+  // Read the context directly rather than through `useWorkspaces`, which throws
+  // when no provider is mounted. The navigation bar now renders on `(viewer)`
+  // too, and that layout deliberately has no `WorkspaceProvider` — switching
+  // workspace means nothing while looking at one particular graph, and mounting
+  // the provider there would add a `listMine()` fetch to every graph load.
+  const context = useContext(WorkspaceContext);
+
+  if (!context) return null;
+
+  const { memberships, active, role, setActive, isLoading } = context;
 
   if (isLoading || !active) return null;
   if (memberships.length === 1 && memberships[0].workspace.personal)

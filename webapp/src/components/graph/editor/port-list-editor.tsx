@@ -308,7 +308,9 @@ function PortAttributeEditor({
           key={index}
           className="space-y-2 rounded-md border border-dashed p-3"
         >
-          <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2">
+          {/* Two-by-two below `sm`; four columns give ~65px per field inside
+              the node modal on a phone. */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto]">
             <Input
               aria-label={`Port ${portIndex + 1} attribute ${index + 1} name`}
               value={attribute.name}
@@ -341,6 +343,7 @@ function PortAttributeEditor({
               type="button"
               variant="ghost"
               size="icon"
+              className="col-span-2 w-full sm:col-span-1 sm:w-9"
               onClick={() =>
                 onChange(value.filter((_, position) => position !== index))
               }

@@ -52,7 +52,11 @@ export function AttributeListEditor({
         <p className="text-muted-foreground text-sm">{emptyHint}</p>
       ) : (
         <div className="space-y-2">
-          <div className="text-muted-foreground grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 text-xs">
+          {/* Four columns leave ~65px per field inside the node modal at phone
+              widths. Below `sm` the row becomes a two-by-two card and the
+              shared header is dropped — each input carries its own placeholder
+              and aria-label, so the column titles were the only thing lost. */}
+          <div className="text-muted-foreground hidden grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 text-xs sm:grid">
             <span>Name</span>
             <span>Value</span>
             <span>Unit</span>
@@ -62,7 +66,7 @@ export function AttributeListEditor({
           {value.map((attribute, index) => (
             <div
               key={index}
-              className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2"
+              className="grid grid-cols-2 gap-2 rounded-md border p-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] sm:rounded-none sm:border-0 sm:p-0"
             >
               <Input
                 aria-label={`Attribute ${index + 1} name`}
@@ -99,6 +103,7 @@ export function AttributeListEditor({
                 type="button"
                 variant="ghost"
                 size="icon"
+                className="col-span-2 w-full sm:col-span-1 sm:w-9"
                 onClick={() => remove(index)}
                 aria-label={`Remove attribute ${index + 1}`}
                 disabled={disabled}

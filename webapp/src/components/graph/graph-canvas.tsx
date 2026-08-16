@@ -164,13 +164,19 @@ export function GraphCanvas({
       onPaneClick={() => onSelect(null)}
     >
       <Background />
-      <Controls showInteractive={false} />
+      {/* XYFlow's default control buttons are ~16px — fine for a mouse, not for
+          a thumb. */}
+      <Controls showInteractive={false} className="[&_button]:size-8" />
       {/* The minimap paints its own opaque background, which ignores the theme
-          unless it is given one — hence the explicit tokens. */}
+          unless it is given one — hence the explicit tokens.
+
+          Hidden below `md`: on a phone it covers a large share of a canvas that
+          is already the whole viewport, and pinch-zoom gives the same overview
+          for free. */}
       <MiniMap
         pannable
         zoomable
-        className="rounded-md border border-border bg-[var(--card)]!"
+        className="border-border !hidden rounded-md border bg-[var(--card)]! md:!block"
         maskColor="color-mix(in oklch, var(--muted) 70%, transparent)"
         nodeClassName={(node) =>
           subgraphFillClass((node.data as GraphNodeData).node.graphColorIndex)

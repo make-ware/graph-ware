@@ -21,7 +21,10 @@ export default function ShellLayout({
   return (
     <WorkspaceProvider>
       <NavigationBar />
-      <main className="min-h-screen">{children}</main>
+      {/* The bar sits above this, so a full `100dvh` here would always overflow
+          the viewport by its height. `dvh` rather than `vh` so the mobile URL
+          bar collapsing does not leave a gap. */}
+      <main className="min-h-[calc(100dvh-3.5rem)]">{children}</main>
     </WorkspaceProvider>
   );
 }

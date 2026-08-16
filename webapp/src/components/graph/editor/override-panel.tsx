@@ -352,7 +352,10 @@ function Endpoint({
   const { path: aliases } = parseInstanceId(path);
 
   return (
-    <span title={`${path}:${port}`} className="whitespace-nowrap">
+    // `break-all` rather than `whitespace-nowrap`: an instance path plus a port
+    // name is long enough to overflow a phone-width panel, and the full value
+    // is on the title anyway.
+    <span title={`${path}:${port}`} className="break-all">
       {node ? (
         <>
           {aliases.length > 0 && (

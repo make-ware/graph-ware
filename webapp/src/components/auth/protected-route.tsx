@@ -37,7 +37,9 @@ export function ProtectedRoute({
   // Show loading state while checking authentication
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      // `min-h-full`, not `min-h-screen`: inside the viewer's fixed-height,
+      // overflow-hidden shell a viewport-tall spinner would overflow it.
+      <div className="flex min-h-full items-center justify-center py-16">
         <div
           className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"
           role="status"

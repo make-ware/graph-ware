@@ -108,7 +108,7 @@ export function FilterGroupEditor({
 
   return (
     <div className="space-y-2 rounded-md border p-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium">Connect only when</span>
         <Select
           value={logicalOperator}
@@ -145,7 +145,10 @@ export function FilterGroupEditor({
       {conditions.map((condition, index) => (
         <div
           key={index}
-          className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2"
+          // The operator select has a hard 160px floor in an `auto` column,
+          // which overflowed a phone-width panel. Below `sm` the condition
+          // stacks instead, with the remove button on its own row.
+          className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto]"
         >
           <Input
             aria-label={`Condition ${index + 1} source attribute`}
@@ -165,7 +168,7 @@ export function FilterGroupEditor({
             disabled={disabled}
           >
             <SelectTrigger
-              className="w-40"
+              className="w-full sm:w-40"
               aria-label={`Condition ${index + 1} operator`}
             >
               <SelectValue />

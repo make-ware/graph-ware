@@ -3,7 +3,14 @@
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Eye, LayoutGrid, Pencil, Plus, Trash2 } from 'lucide-react';
+import {
+  Eye,
+  LayoutGrid,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import type { FlatNode, GraphInput, GraphNode } from '@project/shared';
 import { ProtectedRoute } from '@/components/auth/protected-route';
@@ -17,13 +24,16 @@ import { ImportManager } from '@/components/graph/editor/import-manager';
 import { VersionPanel } from '@/components/graph/editor/version-panel';
 import { NodeEditorModal } from '@/components/graph/editor/node-editor-modal';
 import { OverridePanel } from '@/components/graph/editor/override-panel';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from '@/components/ui/resizable';
+import { ViewerShell } from '@/components/graph/viewer-shell';
+import { TabStrip } from '@/components/graph/tab-strip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Sheet,
@@ -139,10 +149,18 @@ function EditorBody() {
           {graph && <Badge variant="outline">{graph.visibility}</Badge>}
         </div>
 
+        {/*
+          Four labelled `shrink-0` buttons could not wrap and overflowed a phone
+          viewport. Below `md` the two common actions stay as icon buttons and
+          the rest move into an overflow menu; the labels themselves are hidden
+          rather than the buttons duplicated, so there is one control per action
+          at every width.
+        */}
         <div className="flex shrink-0 items-center gap-1.5">
           <Button
             size="sm"
             variant="ghost"
+            className="hidden md:inline-flex"
             onClick={() => setMetadataOpen(true)}
             disabled={!graph || isSaving}
           >
@@ -152,6 +170,7 @@ function EditorBody() {
           <Button
             size="sm"
             variant="ghost"
+            className="hidden md:inline-flex"
             onClick={async () => {
               await resetLayout();
               toast.success('Layout reset');
@@ -166,32 +185,66 @@ function EditorBody() {
             <LayoutGrid className="mr-1 h-4 w-4" />
             Reset layout
           </Button>
+
           <Button
             size="sm"
             onClick={() => openNode(null)}
             disabled={!graph || isSaving}
+            aria-label="Add a node"
           >
-            <Plus className="mr-1 h-4 w-4" />
-            Node
+            <Plus className="h-4 w-4 md:mr-1" />
+            <span className="hidden md:inline">Node</span>
           </Button>
           <Button size="sm" variant="ghost" asChild>
-            <Link href={graph ? `/graphs/${graph.id}` : '/graphs'}>
-              <Eye className="mr-1 h-4 w-4" />
-              View
+            <Link
+              href={graph ? `/graphs/${graph.id}` : '/graphs'}
+              aria-label="Open the viewer"
+            >
+              <Eye className="h-4 w-4 md:mr-1" />
+              <span className="hidden md:inline">View</span>
             </Link>
           </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-9 md:hidden"
+                aria-label="More graph actions"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => setMetadataOpen(true)}
+                disabled={!graph || isSaving}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Details
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={async () => {
+                  await resetLayout();
+                  toast.success('Layout reset');
+                }}
+                disabled={!hasManualPositions || isSaving}
+              >
+                <LayoutGrid className="mr-2 h-4 w-4" />
+                Reset layout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
       <div className="min-h-0 flex-1">
-        <ResizablePanelGroup orientation="horizontal" className="h-full">
-          <ResizablePanel defaultSize="18%" minSize="12%" maxSize="30%">
-            <GraphSidebar />
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          <ResizablePanel defaultSize="52%" minSize="30%">
+        <ViewerShell
+          sizes={{ sidebar: '18%', canvas: '52%', panel: '30%' }}
+          panelTitle="Editor"
+          sidebar={<GraphSidebar />}
+          canvas={
             <div className="relative h-full">
               {isLoading && (
                 <div className="bg-background/60 text-muted-foreground absolute inset-0 z-10 flex items-center justify-center text-sm">
@@ -216,26 +269,28 @@ function EditorBody() {
                 }}
               />
             </div>
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          <ResizablePanel defaultSize="30%" minSize="20%" maxSize="45%">
+          }
+          panel={
             <Tabs defaultValue="details" className="flex h-full flex-col gap-0">
-              <TabsList className="m-2 shrink-0">
-                <TabsTrigger value="details">Details</TabsTrigger>
-                <TabsTrigger value="imports">Imports</TabsTrigger>
-                <TabsTrigger value="overrides">Overrides</TabsTrigger>
-                <TabsTrigger value="versions">Versions</TabsTrigger>
-                <TabsTrigger value="diagnostics">
-                  Issues
-                  {errorCount > 0 && (
-                    <Badge variant="destructive" className="ml-1.5 text-[10px]">
-                      {errorCount}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-              </TabsList>
+              <TabStrip>
+                <TabsList className="w-max min-w-full justify-start">
+                  <TabsTrigger value="details">Details</TabsTrigger>
+                  <TabsTrigger value="imports">Imports</TabsTrigger>
+                  <TabsTrigger value="overrides">Overrides</TabsTrigger>
+                  <TabsTrigger value="versions">Versions</TabsTrigger>
+                  <TabsTrigger value="diagnostics">
+                    Issues
+                    {errorCount > 0 && (
+                      <Badge
+                        variant="destructive"
+                        className="ml-1.5 text-[10px]"
+                      >
+                        {errorCount}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+              </TabStrip>
 
               <TabsContent value="details" className="min-h-0 flex-1">
                 <div className="flex h-full flex-col">
@@ -294,8 +349,8 @@ function EditorBody() {
                 />
               </TabsContent>
             </Tabs>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          }
+        />
       </div>
 
       <NodeEditorModal

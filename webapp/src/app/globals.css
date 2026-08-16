@@ -119,7 +119,15 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    /* iOS Safari inflates text in landscape without this, which reflows a
+       layout that was fitted in portrait. */
+    -webkit-text-size-adjust: 100%;
+  }
   body {
     @apply bg-background text-foreground;
+    /* Pull-to-refresh competes with the graph canvas for the same downward
+       drag; the canvas route has nothing to scroll to anyway. */
+    overscroll-behavior-y: none;
   }
 }

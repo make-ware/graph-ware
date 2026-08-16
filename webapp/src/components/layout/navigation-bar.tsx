@@ -2,11 +2,17 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Menu, LogOut, Library, Network, Settings, Users } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { LogOut } from 'lucide-react';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { WorkspaceSwitcher } from '@/components/layout/workspace-switcher';
+import { MobileNav } from '@/components/layout/mobile-nav';
+import {
+  ACCOUNT_LINKS,
+  PRIMARY_LINKS,
+  isActivePath,
+} from '@/components/layout/nav-links';
 import { useAuth } from '@/hooks/use-auth';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -17,232 +23,163 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { userInitials } from './user-initials';
 
 interface NavigationBarProps {
   className?: string;
+  /**
+   * `compact` is the graph routes' bar: shorter, full-bleed rather than
+   * container-width, and without the primary links — the canvas needs the
+   * height, and the sheet still carries every destination.
+   */
+  variant?: 'default' | 'compact';
 }
 
-export function NavigationBar({ className }: NavigationBarProps) {
+/**
+ * The one navigation bar, on every route and every viewport.
+ *
+ * Desktop and mobile are separated with CSS (`hidden md:flex` / `md:hidden`),
+ * not with `useIsMobile()`. The hook reports desktop for the server snapshot,
+ * so branching on it meant a phone rendered the desktop bar and swapped after
+ * hydration — and it let the two branches offer different destinations, which
+ * is exactly what they had drifted into.
+ */
+export function NavigationBar({
+  className,
+  variant = 'default',
+}: NavigationBarProps) {
   const { user, isAuthenticated, logout, isLoading } = useAuth();
-  const isMobile = useIsMobile();
+  const pathname = usePathname();
 
-  // Helper function to get user initials for avatar fallback
-  const getUserInitials = (name?: string, email?: string) => {
-    if (name) {
-      return name
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2);
-    }
-    if (email) {
-      return email[0].toUpperCase();
-    }
-    return 'U';
-  };
-
-  const handleLogout = () => {
-    logout();
-  };
-
-  // Navigation links for authenticated users
-  const authenticatedLinks = [
-    { href: '/graphs', label: 'Graphs', icon: Network },
-    { href: '/library', label: 'Library', icon: Library },
-    { href: '/workspaces', label: 'Workspaces', icon: Users },
-    { href: '/profile', label: 'Profile', icon: Settings },
-  ];
-
-  // Navigation links for unauthenticated users
-  const unauthenticatedLinks = [
-    { href: '/login', label: 'Login' },
-    { href: '/signup', label: 'Sign Up' },
-  ];
+  const compact = variant === 'compact';
 
   return (
     <header
       className={cn(
-        'border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
+        'bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 border-b backdrop-blur',
+        'pt-[env(safe-area-inset-top)]',
         className
       )}
     >
-      <div className="container flex h-14 items-center">
-        {/* Logo/Brand */}
-        <div className="mr-4 flex pl-4">
-          <Link href="/" className="mr-6 flex items-center space-x-2">
-            <span className="font-bold text-xl">Graph Ware</span>
-          </Link>
-        </div>
+      <div
+        className={cn(
+          'flex items-center gap-2 px-4',
+          compact ? 'h-12 w-full' : 'container mx-auto h-14'
+        )}
+      >
+        <Link
+          href="/"
+          className="flex shrink-0 items-center gap-2"
+          aria-label="Graph Ware home"
+        >
+          <span className={cn('font-bold', compact ? 'text-base' : 'text-xl')}>
+            Graph Ware
+          </span>
+        </Link>
 
-        {/* Desktop Navigation */}
-        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
-          <div className="w-full flex-1 md:w-auto md:flex-none">
-            {isAuthenticated && !isMobile && <WorkspaceSwitcher />}
+        {/* Primary destinations, visible rather than buried in the avatar
+            menu — the mobile sheet has always shown them. */}
+        {isAuthenticated && !compact && (
+          <nav className="ml-4 hidden items-center gap-1 md:flex">
+            {PRIMARY_LINKS.map((link) => {
+              const active = isActivePath(pathname, link.href);
+              return (
+                <Button
+                  key={link.href}
+                  variant={active ? 'secondary' : 'ghost'}
+                  size="sm"
+                  asChild
+                >
+                  <Link
+                    href={link.href}
+                    aria-current={active ? 'page' : undefined}
+                  >
+                    <link.icon className="mr-1.5 size-4" />
+                    {link.label}
+                  </Link>
+                </Button>
+              );
+            })}
+          </nav>
+        )}
+
+        {/* The flexible gap that pushes the account controls to the right. */}
+        <div className="min-w-0 flex-1" />
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          {isAuthenticated && !compact && (
+            <WorkspaceSwitcher className="hidden md:inline-flex" />
+          )}
+
+          <div className="hidden items-center gap-1.5 md:flex">
+            <ThemeToggle />
+            {isLoading ? (
+              <div className="bg-muted h-8 w-20 animate-pulse rounded" />
+            ) : isAuthenticated ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="relative size-8 rounded-full"
+                    aria-label="Account menu"
+                  >
+                    <Avatar className="size-8">
+                      <AvatarImage
+                        src={user?.avatar}
+                        alt={user?.name || user?.email}
+                      />
+                      <AvatarFallback>
+                        {userInitials(user?.name, user?.email)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm leading-none font-medium">
+                        {user?.name || 'User'}
+                      </p>
+                      <p className="text-muted-foreground truncate text-xs leading-none">
+                        {user?.email}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {/* On the compact bar the primary links have no row of their
+                      own, so the menu carries them too. */}
+                  {(compact
+                    ? [...PRIMARY_LINKS, ...ACCOUNT_LINKS]
+                    : ACCOUNT_LINKS
+                  ).map((link) => (
+                    <DropdownMenuItem key={link.href} asChild>
+                      <Link href={link.href} className="flex items-center">
+                        <link.icon className="mr-2 size-4" />
+                        <span>{link.label}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => logout()}>
+                    <LogOut className="mr-2 size-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/login">Login</Link>
+                </Button>
+                <Button size="sm" asChild>
+                  <Link href="/signup">Sign Up</Link>
+                </Button>
+              </div>
+            )}
           </div>
 
-          {/* Desktop Auth Navigation */}
-          {!isMobile && (
-            <nav className="flex items-center gap-2">
-              <ThemeToggle />
-              {isLoading ? (
-                <div className="h-8 w-20 animate-pulse bg-muted rounded" />
-              ) : isAuthenticated ? (
-                <div className="flex items-center gap-4">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="relative h-8 w-8 rounded-full"
-                      >
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage
-                            src={user?.avatar}
-                            alt={user?.name || user?.email}
-                          />
-                          <AvatarFallback>
-                            {getUserInitials(user?.name, user?.email)}
-                          </AvatarFallback>
-                        </Avatar>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      className="w-56"
-                      align="end"
-                      forceMount
-                    >
-                      <DropdownMenuLabel className="font-normal">
-                        <div className="flex flex-col space-y-1">
-                          <p className="text-sm font-medium leading-none">
-                            {user?.name || 'User'}
-                          </p>
-                          <p className="text-xs leading-none text-muted-foreground">
-                            {user?.email}
-                          </p>
-                        </div>
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {authenticatedLinks.map((link) => (
-                        <DropdownMenuItem key={link.href} asChild>
-                          <Link href={link.href} className="flex items-center">
-                            <link.icon className="mr-2 h-4 w-4" />
-                            <span>{link.label}</span>
-                          </Link>
-                        </DropdownMenuItem>
-                      ))}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={handleLogout}>
-                        <LogOut className="mr-2 h-4 w-4" />
-                        <span>Log out</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" asChild>
-                    <Link href="/login">Login</Link>
-                  </Button>
-                  <Button asChild>
-                    <Link href="/signup">Sign Up</Link>
-                  </Button>
-                </div>
-              )}
-            </nav>
-          )}
-
-          {/* Mobile Navigation */}
-          {isMobile && (
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="mr-2 px-0 text-base hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 md:hidden"
-                >
-                  <Menu className="h-5 w-5" />
-                  <span className="sr-only">Toggle Menu</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="pr-0">
-                <SheetHeader>
-                  <SheetTitle>Navigation</SheetTitle>
-                </SheetHeader>
-                <div className="flex flex-col space-y-4 p-4">
-                  {isAuthenticated ? (
-                    <>
-                      <div className="flex items-center space-x-4 pb-4 border-b">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage
-                            src={user?.avatar}
-                            alt={user?.name || user?.email}
-                          />
-                          <AvatarFallback>
-                            {getUserInitials(user?.name, user?.email)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col">
-                          <p className="text-sm font-medium">
-                            {user?.name || 'User'}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {user?.email}
-                          </p>
-                        </div>
-                      </div>
-                      {authenticatedLinks.map((link) => (
-                        <Button
-                          key={link.href}
-                          variant="ghost"
-                          className="justify-start"
-                          asChild
-                        >
-                          <Link href={link.href}>
-                            <link.icon className="mr-2 h-4 w-4" />
-                            {link.label}
-                          </Link>
-                        </Button>
-                      ))}
-                      <Button
-                        variant="ghost"
-                        className="justify-start"
-                        onClick={handleLogout}
-                      >
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Log out
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      {unauthenticatedLinks.map((link) => (
-                        <Button
-                          key={link.href}
-                          variant="ghost"
-                          className="justify-start"
-                          asChild
-                        >
-                          <Link href={link.href}>{link.label}</Link>
-                        </Button>
-                      ))}
-                    </>
-                  )}
-                  <div className="border-t pt-4">
-                    <p className="mb-2 text-xs font-medium text-muted-foreground">
-                      Theme
-                    </p>
-                    <ThemeToggle variant="inline" />
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
-          )}
+          <MobileNav />
         </div>
       </div>
     </header>

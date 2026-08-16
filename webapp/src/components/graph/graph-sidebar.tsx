@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useGraphViewer } from '@/hooks/use-graph-viewer';
 import { subgraphColor } from './subgraph-palette';
+import { useViewerSurface } from './viewer-shell';
 
 function samePath(left: readonly string[], right: readonly string[]): boolean {
   return (
@@ -29,15 +30,23 @@ function samePath(left: readonly string[], right: readonly string[]): boolean {
 export function GraphSidebar() {
   const { graph, subgraphs, focus, setFocus, canEdit } = useGraphViewer();
   const pathname = usePathname();
+  // On a phone this list lives in a Sheet over the canvas; a no-op elsewhere.
+  const { dismiss } = useViewerSurface();
+
+  /** Focus a subgraph, then get out of the way of the result. */
+  const focusOn = (path: string[]) => {
+    setFocus(path);
+    dismiss();
+  };
 
   return (
-    <div className="flex h-full flex-col bg-sidebar">
+    <div className="bg-sidebar flex h-full min-h-0 flex-col">
       <div className="space-y-1 p-3">
         <Button
           asChild
           variant="ghost"
           size="sm"
-          className="-ml-2 h-7 text-muted-foreground"
+          className="text-muted-foreground -ml-2 h-9"
         >
           <Link href="/graphs">
             <ArrowLeft className="size-3.5" />
@@ -94,10 +103,10 @@ export function GraphSidebar() {
               <li key={key} className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => setFocus(entry.path)}
+                  onClick={() => focusOn(entry.path)}
                   aria-current={isActive ? 'true' : undefined}
                   className={cn(
-                    'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-sidebar-accent',
+                    'hover:bg-sidebar-accent flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm',
                     isActive && 'bg-sidebar-accent font-medium'
                   )}
                   style={{ paddingLeft: `${entry.depth * 12 + 8}px` }}
@@ -136,7 +145,7 @@ export function GraphSidebar() {
                     asChild
                     variant="ghost"
                     size="icon"
-                    className="size-6 shrink-0 text-muted-foreground"
+                    className="text-muted-foreground size-9 shrink-0"
                     title="Open this graph on its own"
                   >
                     <Link href={`/graphs/${entry.graphId}`}>

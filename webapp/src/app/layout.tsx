@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/contexts/auth-context';
@@ -18,6 +18,23 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Graph Ware',
   description: 'Graph Ware — built with Next.js and PocketBase',
+};
+
+/**
+ * Next injects `width=device-width, initial-scale=1` on its own; this adds the
+ * two things it does not. `viewportFit: 'cover'` is what makes
+ * `env(safe-area-inset-*)` report anything, which the sticky bar and the
+ * canvas toolbar rely on. Zoom is deliberately left unclamped — a graph is
+ * exactly the kind of dense content people pinch into.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b1020' },
+  ],
 };
 
 export default function RootLayout({

@@ -7,11 +7,8 @@ import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { GraphDetailPanel } from '@/components/graph/graph-detail-panel';
 import { DiagnosticsPanel } from '@/components/graph/diagnostics-panel';
 import { GraphSidebar } from '@/components/graph/graph-sidebar';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from '@/components/ui/resizable';
+import { ViewerShell } from '@/components/graph/viewer-shell';
+import { TabStrip } from '@/components/graph/tab-strip';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GraphViewerProvider } from '@/contexts/graph-viewer-context';
@@ -39,20 +36,16 @@ function ViewerBody() {
     );
   }
 
-  // react-resizable-panels v4: percentages must be *strings* — a bare number
-  // is interpreted as pixels.
   return (
-    <ResizablePanelGroup orientation="horizontal" className="h-full">
-      <ResizablePanel defaultSize="18%" minSize="12%" maxSize="30%">
-        <GraphSidebar />
-      </ResizablePanel>
-
-      <ResizableHandle withHandle />
-
-      <ResizablePanel defaultSize="57%" minSize="30%">
+    <ViewerShell
+      // react-resizable-panels v4: percentages must be *strings* — a bare
+      // number is interpreted as pixels.
+      sizes={{ sidebar: '18%', canvas: '57%', panel: '25%' }}
+      sidebar={<GraphSidebar />}
+      canvas={
         <div className="relative h-full">
           {isLoading && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 text-sm text-muted-foreground">
+            <div className="bg-background/60 text-muted-foreground absolute inset-0 z-10 flex items-center justify-center text-sm">
               Resolving graph…
             </div>
           )}
@@ -63,23 +56,22 @@ function ViewerBody() {
             onSelect={select}
           />
         </div>
-      </ResizablePanel>
-
-      <ResizableHandle withHandle />
-
-      <ResizablePanel defaultSize="25%" minSize="15%" maxSize="40%">
+      }
+      panel={
         <Tabs defaultValue="details" className="flex h-full flex-col gap-0">
-          <TabsList className="m-2 shrink-0">
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="diagnostics">
-              Diagnostics
-              {errorCount > 0 && (
-                <Badge variant="destructive" className="ml-1.5 text-[10px]">
-                  {errorCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
+          <TabStrip>
+            <TabsList className="w-max min-w-full justify-start">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="diagnostics">
+                Diagnostics
+                {errorCount > 0 && (
+                  <Badge variant="destructive" className="ml-1.5 text-[10px]">
+                    {errorCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </TabStrip>
 
           <TabsContent value="details" className="min-h-0 flex-1">
             <GraphDetailPanel
@@ -96,8 +88,8 @@ function ViewerBody() {
             />
           </TabsContent>
         </Tabs>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      }
+    />
   );
 }
 

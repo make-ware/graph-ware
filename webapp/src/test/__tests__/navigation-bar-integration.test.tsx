@@ -16,11 +16,6 @@ vi.mock('next/link', () => ({
   },
 }));
 
-// Mock the mobile hook
-vi.mock('@/hooks/use-mobile', () => ({
-  useIsMobile: vi.fn(() => false),
-}));
-
 // Mock PocketBase client
 vi.mock('@/lib/pocketbase', () => ({
   default: {

@@ -17,11 +17,6 @@ vi.mock('next/link', () => ({
   },
 }));
 
-// Mock the mobile hook
-vi.mock('@/hooks/use-mobile', () => ({
-  useIsMobile: vi.fn(() => false), // Default to desktop
-}));
-
 // Mock PocketBase client
 const mockAuthHelpers = {
   login: vi.fn(),

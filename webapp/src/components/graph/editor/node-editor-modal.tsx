@@ -96,7 +96,7 @@ export function NodeEditorModal({
 }: NodeEditorModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] gap-0 overflow-hidden p-0 sm:max-w-3xl">
+      <DialogContent className="max-h-[90dvh] gap-0 overflow-hidden p-0 sm:max-w-3xl">
         {/*
           The body is a separate component so its state is seeded on mount
           rather than re-synced by an effect. Radix unmounts dialog content when
@@ -203,7 +203,7 @@ function NodeEditorBody({
 
   return (
     <>
-      <DialogHeader className="border-b p-6 pb-4">
+      <DialogHeader className="border-b p-4 pb-3 sm:p-6 sm:pb-4">
         <DialogTitle>{node ? 'Edit node' : 'New node'}</DialogTitle>
         <DialogDescription>
           Ports decide the wiring. Everything on this dialog saves together.
@@ -211,8 +211,8 @@ function NodeEditorBody({
       </DialogHeader>
 
       <Tabs defaultValue="details" className="min-h-0 flex-1">
-        <div className="px-6 pt-4">
-          <TabsList>
+        <div className="overflow-x-auto px-4 pt-3 sm:px-6 sm:pt-4 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+          <TabsList className="w-max min-w-full justify-start">
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="attributes" className="gap-1.5">
               Attributes
@@ -231,8 +231,8 @@ function NodeEditorBody({
           </TabsList>
         </div>
 
-        <ScrollArea className="h-[55vh]">
-          <div className="p-6 pt-4">
+        <ScrollArea className="h-[55dvh]">
+          <div className="p-4 pt-3 sm:p-6 sm:pt-4">
             <TabsContent value="details" className="mt-0 space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="node-label">Label</Label>
@@ -302,7 +302,7 @@ function NodeEditorBody({
         </ScrollArea>
       </Tabs>
 
-      <DialogFooter className="flex-col gap-3 border-t p-6 pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <DialogFooter className="flex-col gap-3 border-t p-4 pt-3 sm:flex-row sm:items-center sm:justify-between sm:p-6 sm:pt-4">
         <div className="min-w-0 space-y-1">
           {errors.root && <p className="text-sm text-red-600">{errors.root}</p>}
           {nestedIssues.map(([key, message]) => (
