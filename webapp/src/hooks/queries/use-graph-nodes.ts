@@ -52,10 +52,11 @@ export function useUpdateGraphNode() {
 export function useDeleteGraphNode() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, graphId }: { id: string; graphId: string }) =>
-      getMutator()
-        .delete(id)
-        .then((ok) => ({ ok, graphId })),
+    mutationFn: async ({ id, graphId }: { id: string; graphId: string }) => {
+      const ok = await getMutator().delete(id);
+      if (!ok) throw new Error('Delete failed');
+      return { ok, graphId };
+    },
     onSuccess: (_res, vars) => {
       qc.invalidateQueries({
         queryKey: queryKeys.graphNodes.listForGraph(vars.graphId),

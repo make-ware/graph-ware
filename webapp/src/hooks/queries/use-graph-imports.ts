@@ -77,10 +77,11 @@ export function useUpdateGraphImport() {
 export function useDeleteGraphImport() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, parentId }: { id: string; parentId: string }) =>
-      getMutator()
-        .delete(id)
-        .then((ok) => ({ ok, parentId })),
+    mutationFn: async ({ id, parentId }: { id: string; parentId: string }) => {
+      const ok = await getMutator().delete(id);
+      if (!ok) throw new Error('Delete failed');
+      return { ok, parentId };
+    },
     onSuccess: (_res, vars) => {
       qc.invalidateQueries({
         queryKey: queryKeys.graphImports.listForParent(vars.parentId),

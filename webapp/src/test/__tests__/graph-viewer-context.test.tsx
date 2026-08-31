@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { GraphImport, GraphNode } from '@project/shared';
 import { SAMPLES, sampleBundle } from '@project/shared/test-fixtures';
 
@@ -143,17 +144,26 @@ function Probe() {
   return null;
 }
 
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+}
+
 function renderViewer(focus: string[] = []) {
+  const qc = createTestQueryClient();
   return render(
-    <GraphViewerProvider
-      rootId={ROOT_ID}
-      focus={focus}
-      selection={null}
-      onFocusChange={vi.fn()}
-      onSelectionChange={vi.fn()}
-    >
-      <Probe />
-    </GraphViewerProvider>
+    <QueryClientProvider client={qc}>
+      <GraphViewerProvider
+        rootId={ROOT_ID}
+        focus={focus}
+        selection={null}
+        onFocusChange={vi.fn()}
+        onSelectionChange={vi.fn()}
+      >
+        <Probe />
+      </GraphViewerProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -220,15 +230,17 @@ describe('GraphViewerProvider', () => {
     const fetchesAfterLoad = harness.calls.getFullList;
 
     rerender(
-      <GraphViewerProvider
-        rootId={ROOT_ID}
-        focus={['port_bank']}
-        selection={null}
-        onFocusChange={vi.fn()}
-        onSelectionChange={vi.fn()}
-      >
-        <Probe />
-      </GraphViewerProvider>
+      <QueryClientProvider client={createTestQueryClient()}>
+        <GraphViewerProvider
+          rootId={ROOT_ID}
+          focus={['port_bank']}
+          selection={null}
+          onFocusChange={vi.fn()}
+          onSelectionChange={vi.fn()}
+        >
+          <Probe />
+        </GraphViewerProvider>
+      </QueryClientProvider>
     );
 
     await waitFor(() => expect(captured?.nodeCount).toBe(3));

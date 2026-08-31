@@ -1,6 +1,7 @@
 'use client';
 
 import { QueryClient } from '@tanstack/react-query';
+import { isRetryableError } from '@project/shared';
 
 let browserQueryClient: QueryClient | undefined;
 
@@ -10,9 +11,9 @@ function createQueryClient() {
       queries: {
         staleTime: 30_000,
         gcTime: 5 * 60 * 1000,
-        retry: 1,
-        retryDelay: (attemptIndex) =>
-          Math.min(1000 * 2 ** attemptIndex, 30_000),
+        retry: (failureCount, error) =>
+          failureCount < 2 && isRetryableError(error),
+        retryDelay: (attemptIndex) => 300 * 2 ** attemptIndex,
         refetchOnWindowFocus: false,
       },
       mutations: {

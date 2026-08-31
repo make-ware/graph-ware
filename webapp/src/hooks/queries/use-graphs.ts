@@ -60,7 +60,11 @@ export function useUpdateGraph() {
 export function useDeleteGraph() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => getMutator().delete(id),
+    mutationFn: async (id: string) => {
+      const ok = await getMutator().delete(id);
+      if (!ok) throw new Error('Delete failed');
+      return ok;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.graphs.all() });
     },

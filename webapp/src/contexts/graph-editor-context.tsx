@@ -26,14 +26,6 @@ import type { TypedPocketBase } from '@project/shared/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/keys';
 
-function useOptionalQueryClient() {
-  try {
-    return useQueryClient();
-  } catch {
-    return null;
-  }
-}
-
 /**
  * What a pending alias rename will do to the overrides underneath it.
  *
@@ -129,7 +121,7 @@ export function GraphEditorProvider({
   const [pending, setPending] = useState(0);
 
   const client = pb as unknown as TypedPocketBase;
-  const queryClient = useOptionalQueryClient();
+  const queryClient = useQueryClient();
 
   const mutators = useMemo(
     () => ({
@@ -172,8 +164,8 @@ export function GraphEditorProvider({
       await tracked(() => mutators.graphs.update(id, input));
       // The viewer does not subscribe to `Graphs`, so the header would keep
       // showing the old label until something else forced a reload.
-      queryClient?.invalidateQueries({ queryKey: queryKeys.graphs.byId(id) });
-      queryClient?.invalidateQueries({ queryKey: queryKeys.graphs.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.graphs.byId(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.graphs.all() });
       reload();
     },
     [mutators, requireGraph, tracked, reload, queryClient]
@@ -182,7 +174,7 @@ export function GraphEditorProvider({
   const deleteGraph = useCallback(async () => {
     const id = requireGraph();
     const result = await tracked(() => mutators.graphs.delete(id));
-    queryClient?.invalidateQueries({ queryKey: queryKeys.graphs.all() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.graphs.all() });
     return result;
   }, [mutators, requireGraph, tracked, queryClient]);
 
@@ -200,11 +192,7 @@ export function GraphEditorProvider({
         mutators.nodes.create({ ...input, graph: id })
       );
       applyNodePatch('create', record);
-      queryClient?.setQueryData(
-        queryKeys.graphNodes.listForGraph(id),
-        (old: unknown) => old
-      );
-      queryClient?.invalidateQueries({
+      queryClient.invalidateQueries({
         queryKey: queryKeys.graphNodes.listForGraph(id),
       });
       return record;
@@ -219,7 +207,7 @@ export function GraphEditorProvider({
         mutators.nodes.update(id, { ...input, graph: graphRecordId })
       );
       applyNodePatch('update', record);
-      queryClient?.invalidateQueries({
+      queryClient.invalidateQueries({
         queryKey: queryKeys.graphNodes.listForGraph(graphRecordId),
       });
       return record;
@@ -261,7 +249,7 @@ export function GraphEditorProvider({
       );
       applyNodePatch('update', record);
       if (graphId)
-        queryClient?.invalidateQueries({
+        queryClient.invalidateQueries({
           queryKey: queryKeys.graphNodes.listForGraph(graphId),
         });
     },
@@ -300,7 +288,7 @@ export function GraphEditorProvider({
       // An import can pull in a graph that was never fetched, so this is a
       // re-resolve rather than a patch — the same reason the realtime handler
       // reloads instead of patching.
-      queryClient?.invalidateQueries({
+      queryClient.invalidateQueries({
         queryKey: queryKeys.graphImports.listForParent(id),
       });
       reload();
@@ -494,7 +482,7 @@ export function GraphEditorProvider({
         mutators.overrides.create({ ...input, graph: id })
       );
       applyOverridePatch('create', record);
-      queryClient?.invalidateQueries({
+      queryClient.invalidateQueries({
         queryKey: queryKeys.graphEdgeOverrides.listForGraph(id),
       });
       return record;
@@ -508,7 +496,7 @@ export function GraphEditorProvider({
       const removed = await tracked(() => mutators.overrides.delete(id));
       if (removed && existing) applyOverridePatch('delete', existing);
       if (graphId)
-        queryClient?.invalidateQueries({
+        queryClient.invalidateQueries({
           queryKey: queryKeys.graphEdgeOverrides.listForGraph(graphId),
         });
     },
