@@ -33,6 +33,16 @@ import type { ViewerSelection } from '@/lib/graph/flow-adapter';
 import { usePortKinds } from '@/hooks/use-port-kinds';
 import pb from '@/lib/pocketbase';
 import type { TypedPocketBase } from '@project/shared/types';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/hooks/queries/keys';
+
+function useOptionalQueryClient() {
+  try {
+    return useQueryClient();
+  } catch {
+    return null;
+  }
+}
 
 /** A focusable subgraph instance, for the sidebar. */
 export interface SubgraphInstance {
@@ -178,6 +188,7 @@ export function GraphViewerProvider({
   const { registry } = usePortKinds();
 
   const client = pb as unknown as TypedPocketBase;
+  const queryClient = useOptionalQueryClient();
 
   // What the current props ask for. Deriving `isLoading` by comparing this
   // against what actually landed keeps the effect from calling setState
@@ -355,6 +366,11 @@ export function GraphViewerProvider({
       if (!loadedGraphIds.has(record.graph)) return;
 
       applyNodePatch(action, record);
+      // Keep TanStack Query cache in sync; upsert via setQueryData collapses
+      // the optimistic-write echo (same replace-by-id as patchNode).
+      queryClient?.invalidateQueries({
+        queryKey: queryKeys.graphNodes.listForGraph(record.graph),
+      });
     };
 
     const onImport = ({ record }: { action: string; record: GraphImport }) => {
@@ -364,6 +380,9 @@ export function GraphViewerProvider({
       // a child graph that was never fetched, so patching is not an option —
       // re-resolve and let the loader work out what is now reachable.
       if (!loadedGraphIds.has(record.parent)) return;
+      queryClient?.invalidateQueries({
+        queryKey: queryKeys.graphImports.all(),
+      });
       reload();
     };
 
@@ -379,6 +398,9 @@ export function GraphViewerProvider({
       if (disposed) return;
       if (record.graph !== rootId) return;
       applyOverridePatch(action, record);
+      queryClient?.invalidateQueries({
+        queryKey: queryKeys.graphEdgeOverrides.listForGraph(record.graph),
+      });
     };
 
     const subscriptions = Promise.all([
@@ -398,7 +420,15 @@ export function GraphViewerProvider({
         for (const unsubscribe of unsubscribers) unsubscribe();
       });
     };
-  }, [client, data, reload, rootId, applyNodePatch, applyOverridePatch]);
+  }, [
+    client,
+    data,
+    reload,
+    rootId,
+    applyNodePatch,
+    applyOverridePatch,
+    queryClient,
+  ]);
 
   // -------------------------------------------------------------------------
 

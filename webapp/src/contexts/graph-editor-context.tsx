@@ -23,6 +23,16 @@ import {
 import { useGraphViewer } from '@/hooks/use-graph-viewer';
 import pb from '@/lib/pocketbase';
 import type { TypedPocketBase } from '@project/shared/types';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/hooks/queries/keys';
+
+function useOptionalQueryClient() {
+  try {
+    return useQueryClient();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * What a pending alias rename will do to the overrides underneath it.
@@ -119,6 +129,7 @@ export function GraphEditorProvider({
   const [pending, setPending] = useState(0);
 
   const client = pb as unknown as TypedPocketBase;
+  const queryClient = useOptionalQueryClient();
 
   const mutators = useMemo(
     () => ({
@@ -161,15 +172,19 @@ export function GraphEditorProvider({
       await tracked(() => mutators.graphs.update(id, input));
       // The viewer does not subscribe to `Graphs`, so the header would keep
       // showing the old label until something else forced a reload.
+      queryClient?.invalidateQueries({ queryKey: queryKeys.graphs.byId(id) });
+      queryClient?.invalidateQueries({ queryKey: queryKeys.graphs.all() });
       reload();
     },
-    [mutators, requireGraph, tracked, reload]
+    [mutators, requireGraph, tracked, reload, queryClient]
   );
 
   const deleteGraph = useCallback(async () => {
     const id = requireGraph();
-    return await tracked(() => mutators.graphs.delete(id));
-  }, [mutators, requireGraph, tracked]);
+    const result = await tracked(() => mutators.graphs.delete(id));
+    queryClient?.invalidateQueries({ queryKey: queryKeys.graphs.all() });
+    return result;
+  }, [mutators, requireGraph, tracked, queryClient]);
 
   // -------------------------------------------------------------------------
   // Nodes
@@ -185,9 +200,16 @@ export function GraphEditorProvider({
         mutators.nodes.create({ ...input, graph: id })
       );
       applyNodePatch('create', record);
+      queryClient?.setQueryData(
+        queryKeys.graphNodes.listForGraph(id),
+        (old: unknown) => old
+      );
+      queryClient?.invalidateQueries({
+        queryKey: queryKeys.graphNodes.listForGraph(id),
+      });
       return record;
     },
-    [mutators, requireGraph, tracked, applyNodePatch]
+    [mutators, requireGraph, tracked, applyNodePatch, queryClient]
   );
 
   const saveNode = useCallback(
@@ -197,9 +219,12 @@ export function GraphEditorProvider({
         mutators.nodes.update(id, { ...input, graph: graphRecordId })
       );
       applyNodePatch('update', record);
+      queryClient?.invalidateQueries({
+        queryKey: queryKeys.graphNodes.listForGraph(graphRecordId),
+      });
       return record;
     },
-    [mutators, requireGraph, tracked, applyNodePatch]
+    [mutators, requireGraph, tracked, applyNodePatch, queryClient]
   );
 
   const deleteNode = useCallback(
@@ -235,8 +260,12 @@ export function GraphEditorProvider({
         mutators.nodes.update(id, { position })
       );
       applyNodePatch('update', record);
+      if (graphId)
+        queryClient?.invalidateQueries({
+          queryKey: queryKeys.graphNodes.listForGraph(graphId),
+        });
     },
-    [mutators, rootNodes, tracked, applyNodePatch]
+    [mutators, rootNodes, tracked, applyNodePatch, graphId, queryClient]
   );
 
   const resetLayout = useCallback(async () => {
@@ -271,10 +300,13 @@ export function GraphEditorProvider({
       // An import can pull in a graph that was never fetched, so this is a
       // re-resolve rather than a patch — the same reason the realtime handler
       // reloads instead of patching.
+      queryClient?.invalidateQueries({
+        queryKey: queryKeys.graphImports.listForParent(id),
+      });
       reload();
       return record;
     },
-    [mutators, requireGraph, tracked, reload]
+    [mutators, requireGraph, tracked, reload, queryClient]
   );
 
   const updateImport = useCallback(
@@ -462,9 +494,12 @@ export function GraphEditorProvider({
         mutators.overrides.create({ ...input, graph: id })
       );
       applyOverridePatch('create', record);
+      queryClient?.invalidateQueries({
+        queryKey: queryKeys.graphEdgeOverrides.listForGraph(id),
+      });
       return record;
     },
-    [mutators, requireGraph, tracked, applyOverridePatch]
+    [mutators, requireGraph, tracked, applyOverridePatch, queryClient]
   );
 
   const deleteOverride = useCallback(
@@ -472,8 +507,12 @@ export function GraphEditorProvider({
       const existing = overrides.find((row) => row.id === id);
       const removed = await tracked(() => mutators.overrides.delete(id));
       if (removed && existing) applyOverridePatch('delete', existing);
+      if (graphId)
+        queryClient?.invalidateQueries({
+          queryKey: queryKeys.graphEdgeOverrides.listForGraph(graphId),
+        });
     },
-    [mutators, overrides, tracked, applyOverridePatch]
+    [mutators, overrides, tracked, applyOverridePatch, graphId, queryClient]
   );
 
   const value: GraphEditorContextValue = {
