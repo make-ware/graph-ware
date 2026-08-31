@@ -145,19 +145,21 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     [memberships, activeId]
   );
 
-  const value: WorkspaceContextValue = {
-    memberships,
-    active: current?.workspace ?? null,
-    role: current?.role ?? null,
-    canWrite: current ? current.role !== 'viewer' : false,
-    canAdminister: current
-      ? current.role === 'owner' || current.role === 'admin'
-      : false,
-    isLoading,
-    error,
-    setActive,
-    reload,
-  };
+  const value: WorkspaceContextValue = useMemo<WorkspaceContextValue>(
+    () => ({
+      memberships,
+      active: current?.workspace ?? null,
+      role: current?.role ?? null,
+      canWrite: current ? current.role !== 'viewer' : false,
+      canAdminister:
+        current?.role === 'owner' || current?.role === 'admin' ? true : false,
+      isLoading,
+      error,
+      setActive,
+      reload,
+    }),
+    [memberships, current, isLoading, error, setActive, reload]
+  );
 
   return (
     <WorkspaceContext.Provider value={value}>
