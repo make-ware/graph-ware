@@ -162,8 +162,12 @@ function GraphsList() {
       // Two bulk queries rather than a count request per graph — the mutators
       // already batch by id, so the request count does not grow with the list.
       const [nodes, imports] = await Promise.all([
-        new GraphNodeMutator(client).listForGraphs(ids),
-        new GraphImportMutator(client).listForParents(ids),
+        new GraphNodeMutator(client).listForGraphs(ids, {
+          fields: 'id,graph',
+        }),
+        new GraphImportMutator(client).listForParents(ids, {
+          fields: 'id,parent',
+        }),
       ]);
 
       const counts: Record<string, GraphCounts> = {};

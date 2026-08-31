@@ -62,11 +62,24 @@ export class GraphVersionMutator extends BaseMutator<
    * Ids that come back missing were filtered out by the read rules or deleted;
    * the resolver reports those as `version-unreadable` and falls back to live.
    */
-  async listByIds(ids: readonly string[]): Promise<GraphVersion[]> {
+  async listByIds(
+    ids: readonly string[],
+    options?: { fields?: string }
+  ): Promise<GraphVersion[]> {
     if (!ids.length) return [];
 
-    const filter = ids.map((id) => `id = "${id}"`).join(' || ');
-    return await this.getCollection().getFullList({ filter, sort: 'id' });
+    const results: GraphVersion[] = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      const filter = chunk.map((id) => `id = "${id}"`).join(' || ');
+      const batch = await this.getCollection().getFullList({
+        filter,
+        sort: 'id',
+        ...(options?.fields ? { fields: options.fields } : {}),
+      });
+      results.push(...batch);
+    }
+    return results;
   }
 
   /**

@@ -27,22 +27,39 @@ function defaultRegistry() {
   return reg;
 }
 
-export function usePortKindColorMap(enabled = true) {
+function defaultMaps() {
+  return { colorMap: defaultColorMap(), registry: defaultRegistry() };
+}
+
+/** Single cache entry for all port-kind data — 6→1 dedupe. */
+export function usePortKindMaps(enabled = true) {
   return useQuery({
-    queryKey: queryKeys.portKinds.colorMap(),
-    queryFn: () => getMutator().colorMap(),
+    queryKey: queryKeys.portKinds.all(),
+    queryFn: () => getMutator().loadMaps(),
     enabled,
     staleTime: 5 * 60 * 1000,
-    initialData: defaultColorMap(),
+    initialData: defaultMaps(),
+  });
+}
+
+export function usePortKindColorMap(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.portKinds.all(),
+    queryFn: () => getMutator().loadMaps(),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    initialData: defaultMaps(),
+    select: (data) => data.colorMap,
   });
 }
 
 export function usePortKindRegistry(enabled = true) {
   return useQuery({
-    queryKey: queryKeys.portKinds.registry(),
-    queryFn: () => getMutator().registry(),
+    queryKey: queryKeys.portKinds.all(),
+    queryFn: () => getMutator().loadMaps(),
     enabled,
     staleTime: 5 * 60 * 1000,
-    initialData: defaultRegistry(),
+    initialData: defaultMaps(),
+    select: (data) => data.registry,
   });
 }

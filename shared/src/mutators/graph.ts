@@ -87,10 +87,33 @@ export class GraphMutator extends BaseMutator<Graph, GraphInput> {
   async listForWorkspaces(
     workspaceIds: readonly string[],
     page = 1,
-    perPage = 500
+    perPage = 500,
+    _options?: { fields?: string }
   ) {
     if (!workspaceIds.length) {
       return { page: 1, perPage, totalItems: 0, totalPages: 0, items: [] };
+    }
+
+    // Chunk to avoid 414 behind nginx when many workspaces are requested.
+    // getList is paginated so chunking is only needed when the filter itself is large.
+    if (workspaceIds.length > 100) {
+      const results: Graph[] = [];
+      let totalItems = 0;
+      for (let i = 0; i < workspaceIds.length; i += 100) {
+        const chunk = workspaceIds.slice(i, i + 100);
+        const filter = chunk.map((id) => `workspace = "${id}"`).join(' || ');
+        const page_result = await this.getList(page, perPage, `(${filter})`);
+        results.push(...page_result.items);
+        totalItems = Math.max(totalItems, page_result.totalItems);
+      }
+      // When chunked, totalItems is approximate; use actual length for display.
+      return {
+        page: 1,
+        perPage,
+        totalItems: results.length,
+        totalPages: 1,
+        items: results,
+      };
     }
 
     const filter = workspaceIds.map((id) => `workspace = "${id}"`).join(' || ');
@@ -146,11 +169,24 @@ export class GraphMutator extends BaseMutator<Graph, GraphInput> {
    * out by the read rules — the resolver reports those as `child-unreadable`
    * rather than failing the whole render.
    */
-  async listByIds(ids: readonly string[]): Promise<Graph[]> {
+  async listByIds(
+    ids: readonly string[],
+    options?: { fields?: string }
+  ): Promise<Graph[]> {
     if (!ids.length) return [];
 
-    const filter = ids.map((id) => `id = "${id}"`).join(' || ');
-    return await this.getCollection().getFullList({ filter, sort: 'id' });
+    const results: Graph[] = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      const filter = chunk.map((id) => `id = "${id}"`).join(' || ');
+      const batch = await this.getCollection().getFullList({
+        filter,
+        sort: 'id',
+        ...(options?.fields ? { fields: options.fields } : {}),
+      });
+      results.push(...batch);
+    }
+    return results;
   }
 
   /**

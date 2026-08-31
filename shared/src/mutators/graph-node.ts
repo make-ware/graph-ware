@@ -41,10 +41,23 @@ export class GraphNodeMutator extends BaseMutator<GraphNode, GraphNodeInput> {
   }
 
   /** Every node across several graphs in one request, for tree resolution. */
-  async listForGraphs(graphIds: readonly string[]): Promise<GraphNode[]> {
+  async listForGraphs(
+    graphIds: readonly string[],
+    options?: { fields?: string }
+  ): Promise<GraphNode[]> {
     if (!graphIds.length) return [];
 
-    const filter = graphIds.map((id) => `graph = "${id}"`).join(' || ');
-    return await this.getCollection().getFullList({ filter, sort: 'name' });
+    const results: GraphNode[] = [];
+    for (let i = 0; i < graphIds.length; i += 100) {
+      const chunk = graphIds.slice(i, i + 100);
+      const filter = chunk.map((id) => `graph = "${id}"`).join(' || ');
+      const batch = await this.getCollection().getFullList({
+        filter,
+        sort: 'name',
+        ...(options?.fields ? { fields: options.fields } : {}),
+      });
+      results.push(...batch);
+    }
+    return results;
   }
 }

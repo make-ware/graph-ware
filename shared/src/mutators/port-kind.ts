@@ -36,7 +36,7 @@ export class PortKindMutator extends BaseMutator<PortKind, PortKindInput> {
    * later `map[key] = …` lets a workspace shadow a global kind of the same key
    * rather than the other way round.
    */
-  private async visibleRecords(): Promise<PortKind[]> {
+  async visibleRecords(): Promise<PortKind[]> {
     const records = await this.getCollection().getFullList({ sort: 'key' });
     return [...records].sort((left, right) => {
       const leftScoped = left.workspace ? 1 : 0;
@@ -44,6 +44,34 @@ export class PortKindMutator extends BaseMutator<PortKind, PortKindInput> {
       if (leftScoped !== rightScoped) return leftScoped - rightScoped;
       return left.key < right.key ? -1 : left.key > right.key ? 1 : 0;
     });
+  }
+
+  /** Single fetch returning both derived maps — dedupes the two getFullList calls. */
+  async loadMaps(): Promise<{
+    colorMap: Record<string, string>;
+    registry: PortKindRegistry;
+  }> {
+    const colorMap: Record<string, string> = {};
+    const registry: PortKindRegistry = {};
+    for (const kind of DEFAULT_PORT_KINDS) {
+      colorMap[kind.key] = kind.color;
+      registry[kind.key] = {
+        key: kind.key,
+        compatibleWith: kind.compatibleWith,
+      };
+    }
+    try {
+      for (const record of await this.visibleRecords()) {
+        colorMap[record.key] = record.color;
+        registry[record.key] = {
+          key: record.key,
+          compatibleWith: record.compatibleWith,
+        };
+      }
+    } catch (error) {
+      console.warn('Falling back to built-in port kinds:', error);
+    }
+    return { colorMap, registry };
   }
 
   /**
@@ -54,20 +82,8 @@ export class PortKindMutator extends BaseMutator<PortKind, PortKindInput> {
    * presentation aid, never a gate on which kinds may be used.
    */
   async colorMap(): Promise<Record<string, string>> {
-    const map: Record<string, string> = {};
-    for (const kind of DEFAULT_PORT_KINDS) {
-      map[kind.key] = kind.color;
-    }
-
-    try {
-      for (const record of await this.visibleRecords()) {
-        map[record.key] = record.color;
-      }
-    } catch (error) {
-      console.warn('Falling back to built-in port kinds:', error);
-    }
-
-    return map;
+    const { colorMap } = await this.loadMaps();
+    return colorMap;
   }
 
   /**
@@ -78,25 +94,7 @@ export class PortKindMutator extends BaseMutator<PortKind, PortKindInput> {
    * never-rejects fallback: the built-in kinds if the collection is unreadable.
    */
   async registry(): Promise<PortKindRegistry> {
-    const registry: PortKindRegistry = {};
-    for (const kind of DEFAULT_PORT_KINDS) {
-      registry[kind.key] = {
-        key: kind.key,
-        compatibleWith: kind.compatibleWith,
-      };
-    }
-
-    try {
-      for (const record of await this.visibleRecords()) {
-        registry[record.key] = {
-          key: record.key,
-          compatibleWith: record.compatibleWith,
-        };
-      }
-    } catch (error) {
-      console.warn('Falling back to built-in port kinds:', error);
-    }
-
+    const { registry } = await this.loadMaps();
     return registry;
   }
 

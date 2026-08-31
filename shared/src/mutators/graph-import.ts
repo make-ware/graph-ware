@@ -45,11 +45,24 @@ export class GraphImportMutator extends BaseMutator<
   }
 
   /** Imports for several parents at once, for breadth-first tree resolution. */
-  async listForParents(parentIds: readonly string[]): Promise<GraphImport[]> {
+  async listForParents(
+    parentIds: readonly string[],
+    options?: { fields?: string }
+  ): Promise<GraphImport[]> {
     if (!parentIds.length) return [];
 
-    const filter = parentIds.map((id) => `parent = "${id}"`).join(' || ');
-    return await this.getCollection().getFullList({ filter, sort: 'order' });
+    const results: GraphImport[] = [];
+    for (let i = 0; i < parentIds.length; i += 100) {
+      const chunk = parentIds.slice(i, i + 100);
+      const filter = chunk.map((id) => `parent = "${id}"`).join(' || ');
+      const batch = await this.getCollection().getFullList({
+        filter,
+        sort: 'order',
+        ...(options?.fields ? { fields: options.fields } : {}),
+      });
+      results.push(...batch);
+    }
+    return results;
   }
 
   /** Which graphs import `childId` — the impact check before a delete. */
