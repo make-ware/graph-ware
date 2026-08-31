@@ -327,14 +327,22 @@ export function GraphViewerProvider({
   );
   const graphsById = useMemo(() => data?.graphs ?? EMPTY_GRAPHS, [data]);
 
+  // Holds the ids from the last loaded tree without triggering the realtime
+  // effect — otherwise every patchNode creates a new `data` identity and the
+  // effect tears down + re-creates all 3 subscriptions (2x per drag).
+  const loadedGraphIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    loadedGraphIdsRef.current = new Set(data?.graphs.keys() ?? []);
+  }, [data]);
+
   // -------------------------------------------------------------------------
   // Realtime
   // -------------------------------------------------------------------------
 
+  const dataReady = data !== null;
   useEffect(() => {
-    if (!data) return;
+    if (!dataReady) return;
 
-    const loadedGraphIds = new Set(data.graphs.keys());
     let disposed = false;
 
     // `subscribeToCollection`'s second argument is `expand`, not options —
@@ -355,7 +363,7 @@ export function GraphViewerProvider({
 
       // A node on a graph we never loaded can only matter if the import tree
       // changed underneath us, which the import subscription handles.
-      if (!loadedGraphIds.has(record.graph)) return;
+      if (!loadedGraphIdsRef.current.has(record.graph)) return;
 
       applyNodePatch(action, record);
       // Keep TanStack Query cache in sync; upsert via setQueryData collapses
@@ -371,7 +379,7 @@ export function GraphViewerProvider({
       // Only reload for imports inside this tree. Any change to one can pull in
       // a child graph that was never fetched, so patching is not an option —
       // re-resolve and let the loader work out what is now reachable.
-      if (!loadedGraphIds.has(record.parent)) return;
+      if (!loadedGraphIdsRef.current.has(record.parent)) return;
       queryClient.invalidateQueries({
         queryKey: queryKeys.graphImports.all(),
       });
@@ -412,15 +420,7 @@ export function GraphViewerProvider({
         for (const unsubscribe of unsubscribers) unsubscribe();
       });
     };
-  }, [
-    client,
-    data,
-    reload,
-    rootId,
-    applyNodePatch,
-    applyOverridePatch,
-    queryClient,
-  ]);
+  }, [client, rootId, dataReady, applyNodePatch, applyOverridePatch, reload]);
 
   // -------------------------------------------------------------------------
 
@@ -435,26 +435,48 @@ export function GraphViewerProvider({
   // route ends up in.
   const canEdit = Boolean(graph && writableWorkspaces.has(graph.workspace));
 
-  const value: GraphViewerContextValue = {
-    graph,
-    view,
-    subgraphs,
-    focus,
-    selection,
-    isOwner,
-    canEdit,
-    isLoading,
-    error,
-    setFocus: onFocusChange,
-    select: onSelectionChange,
-    reload,
-    rootNodes,
-    rootImports,
-    graphsById,
-    overrides,
-    applyNodePatch,
-    applyOverridePatch,
-  };
+  const value: GraphViewerContextValue = useMemo<GraphViewerContextValue>(
+    () => ({
+      graph,
+      view,
+      subgraphs,
+      focus,
+      selection,
+      isOwner,
+      canEdit,
+      isLoading,
+      error,
+      setFocus: onFocusChange,
+      select: onSelectionChange,
+      reload,
+      rootNodes,
+      rootImports,
+      graphsById,
+      overrides,
+      applyNodePatch,
+      applyOverridePatch,
+    }),
+    [
+      graph,
+      view,
+      subgraphs,
+      focus,
+      selection,
+      isOwner,
+      canEdit,
+      isLoading,
+      error,
+      onFocusChange,
+      onSelectionChange,
+      reload,
+      rootNodes,
+      rootImports,
+      graphsById,
+      overrides,
+      applyNodePatch,
+      applyOverridePatch,
+    ]
+  );
 
   return (
     <GraphViewerContext.Provider value={value}>

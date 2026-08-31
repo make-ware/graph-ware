@@ -36,6 +36,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isValid, setIsValid] = useState(() => pb.authStore.isValid);
 
   // Create auth service - memoized to prevent recreation on every render
   const authService = useMemo(() => createAuthService(pb), []);
@@ -73,9 +74,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     initAuth();
 
-    // Listen for auth store changes
+    // Listen for auth store changes — capture isValid into state so render
+    // does not read the mutable store directly (unsafe under concurrent React).
     const unsubscribe = pb.authStore.onChange((token, model) => {
       setUser(model as User | null);
+      setIsValid(pb.authStore.isValid);
     });
 
     return () => {
@@ -230,16 +233,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [user, authService]
   );
 
-  const value: AuthContextType = {
-    user,
-    isLoading,
-    isAuthenticated: !!user && pb.authStore.isValid,
-    login,
-    signup,
-    logout,
-    updateProfile,
-    changePassword,
-  };
+  const value: AuthContextType = useMemo<AuthContextType>(
+    () => ({
+      user,
+      isLoading,
+      isAuthenticated: !!user && isValid,
+      login,
+      signup,
+      logout,
+      updateProfile,
+      changePassword,
+    }),
+    [
+      user,
+      isLoading,
+      isValid,
+      login,
+      signup,
+      logout,
+      updateProfile,
+      changePassword,
+    ]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
