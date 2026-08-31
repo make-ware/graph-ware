@@ -10,6 +10,12 @@ export interface RetryOptions {
   shouldRetry?: (error: unknown) => boolean;
 }
 
+export function isRetryableError(error: unknown): boolean {
+  return defaultShouldRetry(error);
+}
+
+export { defaultShouldRetry as shouldRetry };
+
 function defaultShouldRetry(error: unknown): boolean {
   const status =
     typeof error === 'object' && error !== null

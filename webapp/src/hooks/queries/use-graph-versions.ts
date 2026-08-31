@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { GraphVersionMutator } from '@project/shared/mutators';
+import type { Graph, GraphNode, GraphImport } from '@project/shared';
 import pb from '@/lib/pocketbase';
 import type { TypedPocketBase } from '@project/shared/types';
 import { queryKeys } from './keys';
@@ -32,19 +33,12 @@ export function useLatestGraphVersion(graphId: string | null, enabled = true) {
 export function usePublishGraphVersion() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      graph,
-      nodes,
-      imports,
-      note,
-    }: Parameters<GraphVersionMutator['publish']> extends [
-      infer G,
-      infer N,
-      infer I,
-      infer Note,
-    ]
-      ? { graph: G; nodes: N; imports: I; note?: Note }
-      : never) => getMutator().publish(graph, nodes, imports, note),
+    mutationFn: (vars: {
+      graph: Graph;
+      nodes: readonly GraphNode[];
+      imports: readonly GraphImport[];
+      note?: string;
+    }) => getMutator().publish(vars.graph, vars.nodes, vars.imports, vars.note),
     onSuccess: (data) => {
       qc.invalidateQueries({
         queryKey: queryKeys.graphVersions.listForGraph(data.graph),

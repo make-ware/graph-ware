@@ -36,14 +36,6 @@ import type { TypedPocketBase } from '@project/shared/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/keys';
 
-function useOptionalQueryClient() {
-  try {
-    return useQueryClient();
-  } catch {
-    return null;
-  }
-}
-
 /** A focusable subgraph instance, for the sidebar. */
 export interface SubgraphInstance {
   /** The instance path — what `?focus` carries. */
@@ -188,7 +180,7 @@ export function GraphViewerProvider({
   const { registry } = usePortKinds();
 
   const client = pb as unknown as TypedPocketBase;
-  const queryClient = useOptionalQueryClient();
+  const queryClient = useQueryClient();
 
   // What the current props ask for. Deriving `isLoading` by comparing this
   // against what actually landed keeps the effect from calling setState
@@ -368,7 +360,7 @@ export function GraphViewerProvider({
       applyNodePatch(action, record);
       // Keep TanStack Query cache in sync; upsert via setQueryData collapses
       // the optimistic-write echo (same replace-by-id as patchNode).
-      queryClient?.invalidateQueries({
+      queryClient.invalidateQueries({
         queryKey: queryKeys.graphNodes.listForGraph(record.graph),
       });
     };
@@ -380,7 +372,7 @@ export function GraphViewerProvider({
       // a child graph that was never fetched, so patching is not an option —
       // re-resolve and let the loader work out what is now reachable.
       if (!loadedGraphIds.has(record.parent)) return;
-      queryClient?.invalidateQueries({
+      queryClient.invalidateQueries({
         queryKey: queryKeys.graphImports.all(),
       });
       reload();
@@ -398,7 +390,7 @@ export function GraphViewerProvider({
       if (disposed) return;
       if (record.graph !== rootId) return;
       applyOverridePatch(action, record);
-      queryClient?.invalidateQueries({
+      queryClient.invalidateQueries({
         queryKey: queryKeys.graphEdgeOverrides.listForGraph(record.graph),
       });
     };
