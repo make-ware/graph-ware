@@ -7,16 +7,10 @@ import type { GraphNodeData, PortSlot } from '@/lib/graph/flow-adapter';
 import { cn } from '@/lib/utils';
 import { PortBadge } from './port-badge';
 import { subgraphColor, subgraphTint } from './subgraph-palette';
+import { usePortKindColor } from './port-kind-color-context';
 
-/**
- * How the node reaches the port-kind colour table.
- *
- * XYFlow instantiates node components itself, so props cannot be threaded in
- * from the canvas. Rather than add a second context just for this, the colour
- * lookup is stashed on the node data by the canvas — see `GraphCanvas`.
- */
 export interface GraphNodeExtras {
-  colorFor: (kind: string) => string;
+  colorFor?: (kind: string) => string;
 }
 
 type GraphNodeProps = NodeProps & {
@@ -81,7 +75,8 @@ function PortHandles({
  */
 function GraphNodeComponent({ data, selected }: GraphNodeProps) {
   const { node, inputs, outputs } = data;
-  const colorFor = data.colorFor ?? (() => 'var(--muted-foreground)');
+  const contextColorFor = usePortKindColor();
+  const colorFor = data.colorFor ?? contextColorFor;
   const accent = subgraphColor(node.graphColorIndex);
 
   // The root graph's own nodes have an empty instance path; everything else

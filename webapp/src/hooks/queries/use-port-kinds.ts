@@ -37,7 +37,8 @@ export function usePortKindMaps(enabled = true) {
     queryKey: queryKeys.portKinds.all(),
     queryFn: () => getMutator().loadMaps(),
     enabled,
-    staleTime: 5 * 60 * 1000,
+    staleTime: Infinity,
+    gcTime: 30 * 60 * 1000,
     initialData: defaultMaps(),
   });
 }
@@ -47,7 +48,8 @@ export function usePortKindColorMap(enabled = true) {
     queryKey: queryKeys.portKinds.all(),
     queryFn: () => getMutator().loadMaps(),
     enabled,
-    staleTime: 5 * 60 * 1000,
+    staleTime: Infinity,
+    gcTime: 30 * 60 * 1000,
     initialData: defaultMaps(),
     select: (data) => data.colorMap,
   });
@@ -58,7 +60,8 @@ export function usePortKindRegistry(enabled = true) {
     queryKey: queryKeys.portKinds.all(),
     queryFn: () => getMutator().loadMaps(),
     enabled,
-    staleTime: 5 * 60 * 1000,
+    staleTime: Infinity,
+    gcTime: 30 * 60 * 1000,
     initialData: defaultMaps(),
     select: (data) => data.registry,
   });

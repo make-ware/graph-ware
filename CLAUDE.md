@@ -189,6 +189,14 @@ Feature providers, by contrast, are mounted per-page rather than globally. When 
 
 `WorkspaceProvider` is the one exception: it is mounted in the `(shell)` layout, because the active workspace decides what `/graphs` lists and where `/graphs/new` writes, and a choice that reset on every navigation would be worse than no choice. It is **not** mounted in `(viewer)`, which is a bare full-bleed layout — `GraphViewerProvider` loads its own membership for `canEdit` rather than depending on a provider that route does not have.
 
+### Query / Context boundary
+
+TanStack Query owns **server state**: `webapp/src/hooks/queries/*` wraps every mutator read/write with `useQuery`/`useMutation`, keyed under `queryKeys` in `hooks/queries/keys.ts`. Keys are order-independent (sorted ids) and the query cache is the source of truth for remote data.
+
+React contexts own **derived / UI state**: `GraphViewerProvider` resolves an import tree and builds a `GraphView` (layout, edges) in memory; `WorkspaceProvider` tracks the active workspace. They read through mutators or query hooks and subscribe to realtime via `subscribeToCollection`, but they do not re-fetch what the query cache already holds.
+
+Defaults in `webapp/src/lib/query-client.ts` are `staleTime: Infinity` with `refetchOnReconnect: true` — realtime pushes invalidations, so polling timers are unnecessary. `PortKinds` uses `gcTime: 30m` because it is read on every canvas render. On logout `QueryProvider` (`webapp/src/components/query-provider.tsx`) listens to `pb.authStore.onChange` and `queryClient.clear()`s the cache so the next account does not flash stale data.
+
 ### Two PocketBase conventions the zod layer does not share
 
 Both bit during Phase 5, and both are invisible from the schema files:

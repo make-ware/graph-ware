@@ -28,23 +28,10 @@ export function createPocketBaseClient(
   // cancel each other — which several `Promise.all` call sites do deliberately.
   pb.autoCancellation(options.enableAutoCancellation ?? false);
 
-  // Add global error interceptor for better error handling
   pb.beforeSend = function (url, requestOptions) {
-    // Add timeout to prevent hanging requests
     if (!requestOptions.signal && options.requestTimeout) {
-      const controller = new AbortController();
-      const timer = setTimeout(
-        () => controller.abort(),
-        options.requestTimeout
-      );
-      // In Node the armed timer would keep the process alive for the full
-      // timeout after every request — a one-shot CLI would linger 30s after
-      // printing its result. In the browser setTimeout returns a number and
-      // there is nothing to release.
-      if (typeof timer === 'object' && 'unref' in timer) timer.unref();
-      requestOptions.signal = controller.signal;
+      requestOptions.signal = AbortSignal.timeout(options.requestTimeout);
     }
-
     return { url, options: requestOptions };
   };
 

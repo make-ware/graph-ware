@@ -127,6 +127,16 @@ resolved tree and returns data — which is why it is unit-testable without a
 browser or a live PocketBase. Layers below `mutators/` are Phase 2 and 3; see
 [phases/](phases/README.md).
 
+### Query / Context boundary
+
+Server state lives in TanStack Query (`webapp/src/hooks/queries/` with
+`queryKeys` in `hooks/queries/keys.ts`); UI and derived state lives in
+contexts (`GraphViewerProvider`, `WorkspaceProvider`). The query cache is
+`staleTime: Infinity` with `refetchOnReconnect` — realtime `subscribeToCollection`
+events invalidate it, so no polling timers are needed. `PortKinds` is cached
+with a long `gcTime` because every canvas render reads it. On auth change
+`QueryProvider` clears the cache.
+
 ## Design decisions specific to PocketBase
 
 ### Ownership through nested lookups
