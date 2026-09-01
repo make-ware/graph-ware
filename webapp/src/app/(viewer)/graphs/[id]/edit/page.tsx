@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Eye, LayoutGrid, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Eye, LayoutGrid, Lock, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { FlatNode, GraphInput, GraphNode } from '@project/shared';
 import { ProtectedRoute } from '@/components/auth/protected-route';
@@ -16,7 +16,8 @@ import { GraphForm } from '@/components/graph/editor/graph-form';
 import { ImportManager } from '@/components/graph/editor/import-manager';
 import { VersionPanel } from '@/components/graph/editor/version-panel';
 import { NodeEditorModal } from '@/components/graph/editor/node-editor-modal';
-import { OverridePanel } from '@/components/graph/editor/override-panel';
+// OverridePanel deferred — dedicated editor is reuse-only (Stage A1).
+// import { OverridePanel } from '@/components/graph/editor/override-panel';
 import {
   ResizableHandle,
   ResizablePanel,
@@ -95,11 +96,24 @@ function EditorBody() {
    * An imported node belongs to its own graph and is edited on that graph's
    * route — editing it from here would silently change every other system that
    * imports it, which is a decision the user should make in that context.
+   *
+   * Dedicated editor boundary (Stage A1): parent never mutates child subgraph
+   * nodes. Child nodes are read-only with a link to their own edit route.
    */
   const selectedOwnNode =
     selection?.type === 'node'
       ? (rootNodes.find((node) => node.id === selection.instanceId) ?? null)
       : null;
+
+  // The flat node for the current selection, whether owned or imported.
+  const selectedFlatNode =
+    selection?.type === 'node'
+      ? (view.nodes.find((node) => node.instanceId === selection.instanceId) ??
+        null)
+      : null;
+  const isChildSelection = Boolean(
+    selectedFlatNode && selectedFlatNode.instancePath.length > 0
+  );
 
   if (error) {
     return (
@@ -225,7 +239,6 @@ function EditorBody() {
               <TabsList className="m-2 shrink-0">
                 <TabsTrigger value="details">Details</TabsTrigger>
                 <TabsTrigger value="imports">Imports</TabsTrigger>
-                <TabsTrigger value="overrides">Overrides</TabsTrigger>
                 <TabsTrigger value="versions">Versions</TabsTrigger>
                 <TabsTrigger value="diagnostics">
                   Issues
@@ -252,6 +265,28 @@ function EditorBody() {
                       </Button>
                     </div>
                   )}
+                  {isChildSelection && selectedFlatNode && (
+                    <div className="shrink-0 border-b p-2">
+                      <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900">
+                        <Lock className="h-3.5 w-3.5 shrink-0" />
+                        <span className="flex-1">
+                          Read-only — belongs to {selectedFlatNode.graphLabel}
+                        </span>
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                        >
+                          <Link
+                            href={`/graphs/${selectedFlatNode.graphId}/edit`}
+                          >
+                            Edit in {selectedFlatNode.graphLabel}
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   <div className="min-h-0 flex-1">
                     <GraphDetailPanel
                       view={view}
@@ -267,14 +302,6 @@ function EditorBody() {
                   <div className="space-y-6 p-3">
                     <ImportManager />
                     <NodeList nodes={rootNodes} onEdit={openNode} />
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-
-              <TabsContent value="overrides" className="min-h-0 flex-1">
-                <ScrollArea className="h-full">
-                  <div className="p-3">
-                    <OverridePanel />
                   </div>
                 </ScrollArea>
               </TabsContent>

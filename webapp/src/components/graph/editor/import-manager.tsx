@@ -19,7 +19,6 @@ import {
   toMachineName,
 } from '@project/shared';
 import { GraphImportMutator, GraphMutator } from '@project/shared/mutators';
-import { ImportOverrideEditor } from '@/components/graph/editor/import-override-editor';
 import { ImportVersionPicker } from '@/components/graph/editor/import-version-picker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -256,8 +255,6 @@ function ImportRow({
       </div>
 
       <ImportVersionPicker row={row} disabled={disabled} />
-
-      <ImportOverrideEditor row={row} disabled={disabled} />
 
       <AliasEditor row={row} disabled={disabled} />
     </li>

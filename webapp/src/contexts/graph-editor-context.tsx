@@ -203,6 +203,14 @@ export function GraphEditorProvider({
   const saveNode = useCallback(
     async (id: string, input: Omit<GraphNodeInput, 'graph'>) => {
       const graphRecordId = requireGraph();
+      // Dedicated editor boundary: only nodes owned by this graph (rootNodes)
+      // may be mutated through the parent edit route. Child subgraph nodes
+      // are edited on their own /graphs/[id]/edit route.
+      if (!rootNodes.some((node) => node.id === id)) {
+        throw new Error(
+          'That node does not belong to this graph. Open its own graph to edit it.'
+        );
+      }
       const record = await tracked(() =>
         mutators.nodes.update(id, { ...input, graph: graphRecordId })
       );
@@ -212,12 +220,15 @@ export function GraphEditorProvider({
       });
       return record;
     },
-    [mutators, requireGraph, tracked, applyNodePatch, queryClient]
+    [mutators, requireGraph, tracked, applyNodePatch, queryClient, rootNodes]
   );
 
   const deleteNode = useCallback(
     async (id: string) => {
       const existing = rootNodes.find((node) => node.id === id);
+      if (!existing) {
+        throw new Error('That node does not belong to this graph.');
+      }
       const removed = await tracked(() => mutators.nodes.delete(id));
       if (removed && existing) applyNodePatch('delete', existing);
       return removed;
@@ -237,6 +248,7 @@ export function GraphEditorProvider({
   const setNodePosition = useCallback(
     async (id: string, position: NodePosition) => {
       const existing = rootNodes.find((node) => node.id === id);
+      if (!existing) return;
 
       // Applied before the request, not after: the canvas hands its local drag
       // position back at drag stop, so anything slower than this shows the node

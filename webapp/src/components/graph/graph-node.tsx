@@ -2,6 +2,7 @@
 
 import { memo } from 'react';
 import { Handle, type NodeProps, Position } from '@xyflow/react';
+import { Lock } from 'lucide-react';
 import { formatInstancePath } from '@project/shared';
 import type { GraphNodeData, PortSlot } from '@/lib/graph/flow-adapter';
 import { cn } from '@/lib/utils';
@@ -96,11 +97,14 @@ function GraphNodeComponent({ data, selected }: GraphNodeProps) {
     : node.ports;
   const hiddenPortCount = node.ports.length - visiblePorts.length;
 
+  const isChildNode = node.instancePath.length > 0;
+
   return (
     <div
       className={cn(
         'flex h-full w-full flex-col gap-1 rounded-lg border-2 p-2 shadow-sm transition-shadow',
-        selected && 'ring-2 ring-ring ring-offset-1'
+        selected && 'ring-2 ring-ring ring-offset-1',
+        isChildNode && 'opacity-90'
       )}
       // The box size comes from the node's declared width/height, which XYFlow
       // applies to the wrapper — matching what dagre laid out against.
@@ -116,8 +120,17 @@ function GraphNodeComponent({ data, selected }: GraphNodeProps) {
       />
 
       <div className="min-w-0">
-        <div className="truncate text-sm font-semibold" title={node.label}>
-          {node.label}
+        <div
+          className="flex items-center gap-1 truncate text-sm font-semibold"
+          title={node.label}
+        >
+          {isChildNode && (
+            <Lock
+              className="h-3 w-3 shrink-0 text-muted-foreground"
+              aria-label="Read-only"
+            />
+          )}
+          <span className="truncate">{node.label}</span>
         </div>
         <div
           className="truncate text-[10px] text-muted-foreground"

@@ -1,8 +1,11 @@
 'use client';
 
+import Link from 'next/link';
+import { Lock } from 'lucide-react';
 import type { FlatEdge, FlatNode, GraphView } from '@project/shared';
 import { DEFAULT_PORT_RELATIONSHIP, parseInstanceId } from '@project/shared';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -48,9 +51,27 @@ function NodeDetail({
 }) {
   const inputs = node.ports.filter((port) => port.direction === 'input');
   const outputs = node.ports.filter((port) => port.direction === 'output');
+  const isChildNode = node.instancePath.length > 0;
 
   return (
     <div className="space-y-4 p-4">
+      {isChildNode && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div className="space-y-1">
+            <p>
+              This node belongs to{' '}
+              <span className="font-medium">{node.graphLabel}</span> and is
+              read-only here.
+            </p>
+            <Button asChild variant="outline" size="sm" className="h-7 text-xs">
+              <Link href={`/graphs/${node.graphId}/edit`}>
+                Edit in {node.graphLabel}
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="space-y-1">
         <h2 className="text-sm font-semibold">{node.label}</h2>
         <p className="font-mono text-xs text-muted-foreground">{node.name}</p>
