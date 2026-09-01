@@ -18,7 +18,7 @@ yarn precommit        # lint + typecheck + format + test — the actual gate
 yarn cli <command>    # run the graphware CLI (see cli/README.md)
 ```
 
-Only `shared` and `webapp` have real `build`/`typecheck`/`test` scripts; `cli` has no build, and `pb`'s are `echo` no-ops so `yarn workspaces foreach -A` never breaks. A new workspace has to follow that pattern.
+Only `shared`, `webapp` and `cli` have real `build`/`typecheck`/`test` scripts; `pb`'s are `echo` no-ops so `yarn workspaces foreach -A` never breaks. A new workspace has to follow that pattern. `cli` also has `bundle`, which is not part of `yarn build` — it exists only to produce the release asset.
 
 Single test file / single test name:
 
@@ -51,7 +51,7 @@ touching anything in `shared/src/schema/`.
 
 The `db:*` scripts preload tsx via `NODE_OPTIONS="--import tsx"`. Without it the migrate CLI dies on Node 22 with `Cannot require() ES Module … in a cycle`. Don't strip it.
 
-CI (`.github/workflows/release.yml`) only runs release-please and Docker image builds — it does **not** run lint, typecheck, or tests. `yarn precommit` is the only place those run.
+CI (`.github/workflows/release.yml`) only runs release-please, Docker image builds and the CLI release asset — it does **not** run lint, typecheck, or tests. `yarn precommit` is the only place those run.
 
 PocketBase alone: `yarn workspace @project/pb dev` (`./pocketbase serve`). Admin UI at <http://localhost:8090/_/>; first visit creates the superuser.
 
@@ -123,7 +123,8 @@ Three rules for anything inside `shared/`:
 
 `cli/` is a Node CLI that logs into PocketBase with email and password and drives the same surface the editor does. It goes through the ordinary collection rules — no superuser path, deliberately — so it doubles as a live check that those rules say what they mean. Full notes in `cli/README.md`; the load-bearing bits:
 
-- **No build step either.** `cli/bin/graphware.js` registers tsx's ESM loader and imports `src/index.ts`, so `tsx` is a runtime **dependency**, not a devDep. Relative imports carry their `.ts` extension (`allowImportingTsExtensions`), because Node's ESM resolver does not guess.
+- **Nothing is built to develop it.** `cli/bin/graphware.js` registers tsx's ESM loader and imports `src/index.ts`, so `tsx` is a runtime **dependency**, not a devDep. Relative imports carry their `.ts` extension (`allowImportingTsExtensions`), because Node's ESM resolver does not guess.
+- **The two tsup configs produce artifacts, not the dev path.** `build` writes `dist/` and `bundle` writes `bundle/graphware.js`, the single-file GitHub release asset; both take `src/cli.ts` as their entry, since `src/index.ts` only *exports* `main`. Both must inline `@project/shared` — its exports map points at raw `.ts`, which Node cannot load, so leaving it external yields a `dist/` that dies on its first import. The bundle's banner reinstates `require` via `createRequire`, because inlined CommonJS deps (commander) call it. `VERSION` in `program.ts` comes from a tsup `define` (`__GRAPHWARE_VERSION__`), reading the root `package.json` or `GW_VERSION`; from source it reads `0.0.0-dev`.
 - **Parsing and help are commander; prompts are @inquirer/prompts.** The tree is assembled in `cli/src/program.ts`, whose `Command` subclass adds the global flags (`--json`, `--url`, `-w`, `--no-color`) to every subcommand it creates — so `--json` works at the end of any invocation without per-command wiring. Root settings (`exitOverride`, output routing) are configured *before* the registrars run, because `.command()` copies them at creation time. Prompts only fire when `canPrompt(ctx)` — a TTY and not `--json`; headless invocations fail fast instead of hanging.
 - **Every `ls`-style command shares one listing contract** — `--filter`/`--sort`/`--page`/`--per-page`/`--all`, composed in `cli/src/listing.ts` by AND-joining the user filter onto the command's scope filter through `BaseMutator.getList`, so `--filter` can narrow a scope but never escape it. Writes that change resolution take `--check`, which re-resolves the graph and reports diagnostics (`cli/src/render.ts`).
 - **Exit codes: 0 / 1 / 2** (ok / failed / bad command line); `cli/src/index.ts` maps commander's `CommanderError`s onto that. `--json` puts `{"ok":true,"data":…}` on stdout and `{"ok":false,"error":…}` on stderr — paged listings keep their `{page, …, items}` envelope. A structural test (`cli/src/test/structure.test.ts`) walks the commander tree and asserts every leaf documents itself and its flags, carries the global flags, and that the listing/`--check`/`--yes` contracts hold exactly where declared.
@@ -246,4 +247,4 @@ No live PocketBase is needed — use `@project/shared/test-fixtures` (`MockAuthS
 - `shared/package.json` sets `"type": "module"`. If `yarn db:status` ever regresses after touching it, that field is the first suspect — it changes how tsx loads the schema files for `pocketbase-migrate` (true ESM instead of CJS transpilation).
 - `example/` is upstream reference material — the original Node-Ware docs and sample data. `yarn db:seed` reads `example/data/*.json`, and `shared`'s test fixtures import three of them; nothing in `webapp/` does.
 - `scripts/seed-graphs.mjs` authenticates as a **superuser** and is deliberately not folded into the CLI: the CLI's value is that it exercises the ordinary collection rules, and an admin path inside it would dilute exactly that.
-- CI runs no checks. `.github/workflows/release.yml` does release-please plus multi-arch image builds — lint, typecheck, and tests exist only in `yarn precommit`.
+- CI runs no checks. `.github/workflows/release.yml` does release-please, multi-arch image builds, and the `graphware-<version>.tar.gz` CLI asset (plus an optional Homebrew formula push, gated on `HOMEBREW_TAP_TOKEN` and `continue-on-error`) — lint, typecheck, and tests exist only in `yarn precommit`.

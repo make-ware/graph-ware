@@ -27,10 +27,36 @@ the flag to pass instead.
 [commander]: https://www.npmjs.com/package/commander
 [@inquirer/prompts]: https://www.npmjs.com/package/@inquirer/prompts
 
-## No build step
+## No build step in development
 
 `bin/graphware.js` registers tsx's ESM loader and imports `src/index.ts`, so
-what runs is the source. `tsx` is therefore a real dependency, not a devDep.
+what runs is the source. `tsx` is therefore a real dependency, not a devDep,
+and `yarn cli`, `npm link` and the tests all go through it — nothing has to be
+built to work on this package.
+
+The two tsup configs exist only to produce artifacts:
+
+| Command  | Config                  | Output                | For                                     |
+| -------- | ----------------------- | --------------------- | --------------------------------------- |
+| `build`  | `tsup.config.ts`        | `dist/graphware.js`   | a compiled copy for use in the checkout |
+| `bundle` | `tsup.bundle.config.ts` | `bundle/graphware.js` | the GitHub release asset                |
+
+```bash
+yarn workspace @project/cli build     # dist/  — npm deps stay external
+yarn workspace @project/cli bundle    # bundle/ — single self-contained file
+```
+
+Both use `src/cli.ts` as the entry (`src/index.ts` only _exports_ `main`; the
+tsx launcher and the tests are its callers). Both inline `@project/shared`,
+because it is source-only — its exports map points at raw `.ts`, which Node
+cannot load, so a dist that left it external would die on its first import.
+`bundle` goes further and inlines _everything_ (`noExternal: [/.*/]`), so the
+published artifact needs nothing but Node >= 20.19 on `PATH` — not even tsx.
+
+`VERSION` in `src/program.ts` is substituted at build time from the root
+`package.json` (the one release-please bumps), or from `GW_VERSION` when the
+release workflow passes it explicitly. Running from source reports
+`0.0.0-dev`.
 
 ## The standard listing contract
 

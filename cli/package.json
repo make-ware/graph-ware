@@ -9,13 +9,16 @@
   },
   "files": [
     "bin",
-    "src"
+    "src",
+    "dist",
+    "bundle"
   ],
   "scripts": {
     "start": "node ./bin/graphware.js",
     "dev": "node ./bin/graphware.js",
-    "build": "echo 'cli runs from source via tsx - no build step'",
-    "clean": "echo 'cli has no build output'",
+    "build": "tsup",
+    "bundle": "tsup --config tsup.bundle.config.ts",
+    "clean": "rm -rf dist bundle",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -36,6 +39,7 @@
     "@types/node": "^20.19.43",
     "eslint": "^9.39.5",
     "prettier": "^3.9.6",
+    "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   },
