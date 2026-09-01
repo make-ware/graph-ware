@@ -21,6 +21,7 @@ import {
   toFlowNodes,
 } from '@/lib/graph/flow-adapter';
 import { GraphNode } from './graph-node';
+import { PortKindColorProvider } from './port-kind-color-context';
 import { subgraphFillClass } from './subgraph-palette';
 
 // Defined once at module scope: XYFlow warns (and remounts every node) if the
@@ -85,22 +86,37 @@ export function GraphCanvas({
   // record no longer has.
   const [dragged, setDragged] = useState<Record<string, NodePosition>>({});
 
+  const baseNodes = useMemo<Node<GraphNodeData>[]>(
+    () => toFlowNodes(view),
+    [view]
+  );
+
   const nodes = useMemo<Node<GraphNodeData>[]>(() => {
     const selectedId = selection?.type === 'node' ? selection.instanceId : null;
-
-    return toFlowNodes(view).map((node) => {
+    const hasDragged = Object.keys(dragged).length > 0;
+    return baseNodes.map((node) => {
       const pending = dragged[node.id];
+      // Only create a new object for the dragged node; others keep reference
+      if (
+        !hasDragged &&
+        node.id !== selectedId &&
+        node.draggable === undefined
+      ) {
+        // still need selected/draggable — fall through
+      }
+      const needsPosition = pending !== undefined;
+      const needsSelected = (node.id === selectedId) !== Boolean(node.selected);
+      const draggable = isEditable && (canDragNode?.(node.data.node) ?? true);
+      const needsDraggable = node.draggable !== draggable;
+      if (!needsPosition && !needsSelected && !needsDraggable) return node;
       return {
         ...node,
         position: pending ?? node.position,
         selected: node.id === selectedId,
-        draggable: isEditable && (canDragNode?.(node.data.node) ?? true),
-        // `colorFor` rides along on the node data because XYFlow constructs node
-        // components itself and there is no prop channel into them.
-        data: { ...node.data, colorFor },
+        draggable,
       };
     });
-  }, [view, colorFor, selection, dragged, isEditable, canDragNode]);
+  }, [baseNodes, selection, dragged, isEditable, canDragNode]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange<Node<GraphNodeData>>[]) => {
@@ -121,61 +137,69 @@ export function GraphCanvas({
     []
   );
 
+  const baseEdges = useMemo<Edge[]>(
+    () => toFlowEdges(view, colorFor),
+    [view, colorFor]
+  );
+
   const edges = useMemo<Edge[]>(() => {
     const selectedId = selection?.type === 'edge' ? selection.edgeId : null;
-
-    return toFlowEdges(view, colorFor).map((edge) => ({
+    return baseEdges.map((edge) => ({
       ...edge,
       selected: edge.id === selectedId,
       animated: edge.id === selectedId,
     }));
-  }, [view, colorFor, selection]);
+  }, [baseEdges, selection]);
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      nodeTypes={NODE_TYPES}
-      colorMode={(theme as ColorMode) ?? 'system'}
-      nodesDraggable={isEditable}
-      // There is no "connect" gesture in this app, in either mode. Wiring is
-      // derived from ports; dragging a handle would imply a stored edge.
-      nodesConnectable={false}
-      elementsSelectable
-      fitView
-      minZoom={0.1}
-      proOptions={{ hideAttribution: true }}
-      onNodesChange={isEditable ? onNodesChange : undefined}
-      onNodeDragStop={(_, node) => {
-        const position = dragged[node.id] ?? node.position;
-        setDragged((current) => {
-          if (!(node.id in current)) return current;
-          const next = { ...current };
-          delete next[node.id];
-          return next;
-        });
-        onNodeMoved?.(node.id, {
-          x: Math.round(position.x),
-          y: Math.round(position.y),
-        });
-      }}
-      onNodeClick={(_, node) => onSelect({ type: 'node', instanceId: node.id })}
-      onEdgeClick={(_, edge) => onSelect({ type: 'edge', edgeId: edge.id })}
-      onPaneClick={() => onSelect(null)}
-    >
-      <Background />
-      <Controls showInteractive={false} />
-      {/* The minimap paints its own opaque background, which ignores the theme
-          unless it is given one — hence the explicit tokens. */}
-      <MiniMap
-        pannable
-        zoomable
-        className="rounded-md border border-border bg-[var(--card)]!"
-        maskColor="color-mix(in oklch, var(--muted) 70%, transparent)"
-        nodeClassName={(node) =>
-          subgraphFillClass((node.data as GraphNodeData).node.graphColorIndex)
+    <PortKindColorProvider colorFor={colorFor}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={NODE_TYPES}
+        colorMode={(theme as ColorMode) ?? 'system'}
+        nodesDraggable={isEditable}
+        // There is no "connect" gesture in this app, in either mode. Wiring is
+        // derived from ports; dragging a handle would imply a stored edge.
+        nodesConnectable={false}
+        elementsSelectable
+        fitView
+        minZoom={0.1}
+        proOptions={{ hideAttribution: true }}
+        onNodesChange={isEditable ? onNodesChange : undefined}
+        onNodeDragStop={(_, node) => {
+          const position = dragged[node.id] ?? node.position;
+          setDragged((current) => {
+            if (!(node.id in current)) return current;
+            const next = { ...current };
+            delete next[node.id];
+            return next;
+          });
+          onNodeMoved?.(node.id, {
+            x: Math.round(position.x),
+            y: Math.round(position.y),
+          });
+        }}
+        onNodeClick={(_, node) =>
+          onSelect({ type: 'node', instanceId: node.id })
         }
-      />
-    </ReactFlow>
+        onEdgeClick={(_, edge) => onSelect({ type: 'edge', edgeId: edge.id })}
+        onPaneClick={() => onSelect(null)}
+      >
+        <Background />
+        <Controls showInteractive={false} />
+        {/* The minimap paints its own opaque background, which ignores the theme
+          unless it is given one — hence the explicit tokens. */}
+        <MiniMap
+          pannable
+          zoomable
+          className="rounded-md border border-border bg-[var(--card)]!"
+          maskColor="color-mix(in oklch, var(--muted) 70%, transparent)"
+          nodeClassName={(node) =>
+            subgraphFillClass((node.data as GraphNodeData).node.graphColorIndex)
+          }
+        />
+      </ReactFlow>
+    </PortKindColorProvider>
   );
 }
