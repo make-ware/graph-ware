@@ -1,0 +1,199 @@
+{
+  "id": "nacodgtz4fi09nsh3kzy9",
+  "uid": "NetworkSystem",
+  "name": "network_system",
+  "label": "Network System",
+  "namespace": "examples",
+  "description": "Structured home network: ISP router feeding a switch and patch panel with wireless access points and a wired office drop.",
+  "visibility": "unlisted",
+  "tags": ["demo", "electrical", "residential", "subsystem", "network"],
+  "elements": [
+    {
+      "id": "835mkr0zccawgu1h8ihuc",
+      "name": "router",
+      "label": "ISP Router",
+      "attributes": [
+        { "name": "role", "value": "source", "kind": "role" },
+        { "name": "type", "value": "router", "kind": "info" }
+      ],
+      "ports": [
+        {
+          "name": "lan",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "signal/gpio"
+        }
+      ]
+    },
+    {
+      "id": "10m8bd8d6orur4if3boul",
+      "name": "network_switch",
+      "label": "Network Switch (8-port)",
+      "attributes": [
+        { "name": "role", "value": "switch", "kind": "role" },
+        { "name": "ports", "value": "8", "kind": "info" }
+      ],
+      "ports": [
+        {
+          "name": "uplink",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/gpio",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "source",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "source", "operator": "eq" },
+                  { "attribute": "role", "value": "switch", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "lan",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "signal/gpio"
+        }
+      ]
+    },
+    {
+      "id": "n3o35jw9e22pwa955o0ae",
+      "name": "patch_panel",
+      "label": "Patch Panel",
+      "attributes": [
+        { "name": "role", "value": "distribution", "kind": "role" },
+        { "name": "ports", "value": "12", "kind": "info" }
+      ],
+      "ports": [
+        {
+          "name": "uplink",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/gpio",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "switch",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "switch", "operator": "eq" },
+                  { "attribute": "role", "value": "source", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "drops",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "signal/gpio"
+        }
+      ]
+    },
+    {
+      "id": "6n4cka4wv4xl7wxyx2s5h",
+      "name": "ap_living_room",
+      "label": "Access Point — Living Room",
+      "attributes": [
+        { "name": "role", "value": "endpoint", "kind": "role" },
+        { "name": "band", "value": "wifi6", "kind": "info" }
+      ],
+      "ports": [
+        {
+          "name": "ethernet",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/gpio",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "switch",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "switch", "operator": "eq" },
+                  { "attribute": "role", "value": "distribution", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vnthhn8mmyek68er9eqel",
+      "name": "ap_bedroom",
+      "label": "Access Point — Bedroom",
+      "attributes": [
+        { "name": "role", "value": "endpoint", "kind": "role" },
+        { "name": "band", "value": "wifi6", "kind": "info" }
+      ],
+      "ports": [
+        {
+          "name": "ethernet",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/gpio",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "switch",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "switch", "operator": "eq" },
+                  { "attribute": "role", "value": "distribution", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wi4cud3p0wctzm0oybors",
+      "name": "ethernet_drop_office",
+      "label": "Ethernet Drop — Office",
+      "attributes": [
+        { "name": "role", "value": "endpoint", "kind": "role" },
+        { "name": "jack", "value": "cat6", "kind": "info" }
+      ],
+      "ports": [
+        {
+          "name": "ethernet",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/gpio",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "distribution",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "distribution", "operator": "eq" },
+                  { "attribute": "role", "value": "switch", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "imports": [],
+  "childGraphs": []
+}

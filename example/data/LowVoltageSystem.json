@@ -1,0 +1,54 @@
+{
+  "id": "lj2iv2edetad4pv1gobc3",
+  "uid": "LowVoltageSystem",
+  "name": "low_voltage_system",
+  "label": "Low Voltage System",
+  "namespace": "examples",
+  "description": "Low-voltage distribution hub combining the home network and doorbell subsystems. The intermediate nesting layer between Smart Home and its leaf subsystems.",
+  "visibility": "public",
+  "tags": ["demo", "electrical", "residential", "low-voltage"],
+  "elements": [
+    {
+      "id": "curkx953179h6dq2qvzys",
+      "name": "lv_distribution",
+      "label": "LV Distribution Hub",
+      "attributes": [
+        { "name": "role", "value": "distribution", "kind": "role" },
+        { "name": "voltage", "value": "16", "unit": "volts", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "feed",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "breaker",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "breaker", "operator": "eq" },
+                  { "attribute": "role", "value": "panel", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "low_voltage",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "power"
+        }
+      ]
+    }
+  ],
+  "imports": [
+    { "child": "NetworkSystem", "alias": "network", "label": "Network" },
+    { "child": "DoorbellSystem", "alias": "doorbell", "label": "Doorbell" }
+  ],
+  "childGraphs": []
+}

@@ -1,0 +1,169 @@
+{
+  "id": "qpwynvugikkjdh9dcvb0d",
+  "uid": "DoorbellSystem",
+  "name": "doorbell_system",
+  "label": "Doorbell System",
+  "namespace": "examples",
+  "description": "Low-voltage doorbell: a 16V transformer steps 120V branch power down to drive the button, chime, and video doorbell. The voltage-bridging demo.",
+  "visibility": "unlisted",
+  "tags": ["demo", "electrical", "residential", "subsystem", "low-voltage"],
+  "elements": [
+    {
+      "id": "ungebac7hwaqis346tfwd",
+      "name": "doorbell_transformer",
+      "label": "Doorbell Transformer (16V AC)",
+      "attributes": [
+        { "name": "role", "value": "transformer", "kind": "role" },
+        { "name": "voltage", "value": "16", "unit": "volts", "kind": "power" },
+        { "name": "input_voltage", "value": "120", "unit": "volts", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "line",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "breaker",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "breaker", "operator": "eq" },
+                  { "attribute": "role", "value": "panel", "operator": "eq" },
+                  { "attribute": "role", "value": "fused", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "secondary",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "ggcwmc4l1v78ahkfm6zhc",
+      "name": "doorbell_button",
+      "label": "Doorbell Button",
+      "attributes": [
+        { "name": "role", "value": "switch", "kind": "role" },
+        { "name": "voltage", "value": "16", "unit": "volts", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "line",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "transformer",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [{ "attribute": "role", "value": "transformer", "operator": "eq" }]
+              }
+            }
+          ]
+        },
+        {
+          "name": "switched",
+          "direction": "output",
+          "relationship": "one",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "z2xv3ne5lb3r7os427oc4",
+      "name": "doorbell_chime",
+      "label": "Doorbell Chime",
+      "attributes": [
+        { "name": "role", "value": "chime", "kind": "role" },
+        { "name": "voltage", "value": "16", "unit": "volts", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "power",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "switch",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "switch", "operator": "eq" },
+                  { "attribute": "role", "value": "transformer", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lyc90pgpx24k6fiz8l467",
+      "name": "video_doorbell",
+      "label": "Video Doorbell",
+      "attributes": [
+        { "name": "role", "value": "load", "kind": "role" },
+        { "name": "voltage", "value": "16", "unit": "volts", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "power",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "transformer",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [{ "attribute": "role", "value": "transformer", "operator": "eq" }]
+              }
+            }
+          ]
+        },
+        {
+          "name": "data",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/gpio",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "switch",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "switch", "operator": "eq" },
+                  { "attribute": "role", "value": "distribution", "operator": "eq" },
+                  { "attribute": "role", "value": "source", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "imports": [],
+  "childGraphs": []
+}

@@ -1,0 +1,186 @@
+{
+  "id": "cgw0lpp3qqs49yx4jntop",
+  "uid": "WorkshopSystem",
+  "name": "workshop_system",
+  "label": "Workshop System",
+  "namespace": "examples",
+  "description": "A detached workshop fed from the house: 60A subpanel powering 240V shop tools, lighting, and general-purpose outlets. Standalone or composable with House Electrical as the feeder.",
+  "visibility": "public",
+  "tags": ["demo", "electrical", "residential", "workshop"],
+  "elements": [
+    {
+      "id": "9fjjpzppgagi2qlj0ylhc",
+      "name": "subpanel",
+      "label": "Workshop Subpanel (60A)",
+      "attributes": [
+        { "name": "role", "value": "panel", "kind": "role" },
+        { "name": "voltage", "value": "240", "unit": "volts", "kind": "power" },
+        { "name": "rating", "value": "60", "unit": "amps", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "feeder",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "source",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "source", "operator": "eq" },
+                  { "attribute": "role", "value": "panel", "operator": "eq" },
+                  { "attribute": "role", "value": "breaker", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "circuits",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "fupcvj1wsp1es2nfp8hjq",
+      "name": "table_saw",
+      "label": "Table Saw (240V)",
+      "attributes": [
+        { "name": "role", "value": "load", "kind": "role" },
+        { "name": "voltage", "value": "240", "unit": "volts", "kind": "power" },
+        { "name": "horsepower", "value": "3", "unit": "hp", "kind": "info" }
+      ],
+      "ports": [
+        {
+          "name": "power",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "panel",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [{ "attribute": "role", "value": "panel", "operator": "eq" }]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "id62r59l4h6ls8oypdkk6",
+      "name": "dust_collector",
+      "label": "Dust Collector (240V)",
+      "attributes": [
+        { "name": "role", "value": "load", "kind": "role" },
+        { "name": "voltage", "value": "240", "unit": "volts", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "power",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "panel",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [{ "attribute": "role", "value": "panel", "operator": "eq" }]
+              }
+            }
+          ]
+        },
+        {
+          "name": "control",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "signal/gpio",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "controller",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [{ "attribute": "role", "value": "controller", "operator": "eq" }]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "j39kat346qal4240uq3qw",
+      "name": "shop_lights",
+      "label": "Shop Lights",
+      "attributes": [
+        { "name": "role", "value": "load", "kind": "role" },
+        { "name": "voltage", "value": "120", "unit": "volts", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "power",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "panel",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [{ "attribute": "role", "value": "panel", "operator": "eq" }]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "l2vhzh7fylqe910m0gue1",
+      "name": "shop_outlets",
+      "label": "Shop Outlets (20A)",
+      "attributes": [
+        { "name": "role", "value": "load", "kind": "role" },
+        { "name": "voltage", "value": "120", "unit": "volts", "kind": "power" },
+        { "name": "rating", "value": "20", "unit": "amps", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "power",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "panel",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [{ "attribute": "role", "value": "panel", "operator": "eq" }]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "imports": [],
+  "childGraphs": []
+}

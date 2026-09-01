@@ -1,0 +1,263 @@
+{
+  "id": "3uaaekwpwd3i9mza2rh9m",
+  "uid": "HouseElectrical",
+  "name": "house_electrical",
+  "label": "House Electrical",
+  "namespace": "examples",
+  "description": "120/240V branch circuits fed from the main panel. Each breaker protects a group of loads — lighting, receptacles, and a dedicated appliance circuit.",
+  "visibility": "unlisted",
+  "tags": ["demo", "electrical", "residential", "subsystem"],
+  "elements": [
+    {
+      "id": "htsi2fi3c40g3k7wtakdu",
+      "name": "main_panel",
+      "label": "Main Panel",
+      "attributes": [
+        { "name": "role", "value": "panel", "kind": "role" },
+        { "name": "voltage", "value": "240", "unit": "volts", "kind": "power" },
+        { "name": "rating", "value": "200", "unit": "amps", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "main",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "source",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "AND",
+                "conditions": [{ "attribute": "role", "value": "source", "operator": "eq" }]
+              }
+            }
+          ]
+        },
+        {
+          "name": "circuits",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "a89lxnpvn81xiwjz9wb99",
+      "name": "breaker_lighting",
+      "label": "Lighting Breaker (15A)",
+      "attributes": [
+        { "name": "role", "value": "breaker", "kind": "role" },
+        { "name": "rating", "value": "15", "unit": "amps", "kind": "power" },
+        { "name": "voltage", "value": "120", "unit": "volts", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "line",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "panel",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "panel", "operator": "eq" },
+                  { "attribute": "role", "value": "fused", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "load",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "84kts69x9e53xi9c5tnah",
+      "name": "breaker_receptacles",
+      "label": "Receptacle Breaker (20A)",
+      "attributes": [
+        { "name": "role", "value": "breaker", "kind": "role" },
+        { "name": "rating", "value": "20", "unit": "amps", "kind": "power" },
+        { "name": "voltage", "value": "120", "unit": "volts", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "line",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "panel",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "panel", "operator": "eq" },
+                  { "attribute": "role", "value": "fused", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "load",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "o2pevulquntpjba70h2mo",
+      "name": "breaker_appliance",
+      "label": "Appliance Breaker (30A)",
+      "attributes": [
+        { "name": "role", "value": "breaker", "kind": "role" },
+        { "name": "rating", "value": "30", "unit": "amps", "kind": "power" },
+        { "name": "voltage", "value": "240", "unit": "volts", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "line",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "panel",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "panel", "operator": "eq" },
+                  { "attribute": "role", "value": "fused", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "load",
+          "direction": "output",
+          "relationship": "many",
+          "kind": "power"
+        }
+      ]
+    },
+    {
+      "id": "x7fbee9t50tqzu7ltv1b2",
+      "name": "ceiling_lights",
+      "label": "Ceiling Lights",
+      "attributes": [
+        { "name": "role", "value": "load", "kind": "role" },
+        { "name": "voltage", "value": "120", "unit": "volts", "kind": "power" },
+        { "name": "wattage", "value": "240", "unit": "watts", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "power",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "isRequired": true,
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "breaker",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "breaker", "operator": "eq" },
+                  { "attribute": "role", "value": "fused", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "abkzmnyr0hr2usoyr8nkv",
+      "name": "outlet_bank",
+      "label": "Outlet Bank",
+      "attributes": [
+        { "name": "role", "value": "load", "kind": "role" },
+        { "name": "voltage", "value": "120", "unit": "volts", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "power",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "breaker",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "breaker", "operator": "eq" },
+                  { "attribute": "role", "value": "fused", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "j8gdsnvj15zr2ga3j7g0f",
+      "name": "dedicated_outlet",
+      "label": "Dedicated Appliance Outlet",
+      "attributes": [
+        { "name": "role", "value": "load", "kind": "role" },
+        { "name": "voltage", "value": "240", "unit": "volts", "kind": "power" },
+        { "name": "rating", "value": "30", "unit": "amps", "kind": "power" }
+      ],
+      "ports": [
+        {
+          "name": "power",
+          "direction": "input",
+          "relationship": "one",
+          "kind": "power",
+          "attributes": [
+            {
+              "name": "accepts",
+              "value": "breaker",
+              "kind": "role",
+              "filter": {
+                "logicalOperator": "OR",
+                "conditions": [
+                  { "attribute": "role", "value": "breaker", "operator": "eq" },
+                  { "attribute": "role", "value": "fused", "operator": "eq" }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "imports": [],
+  "childGraphs": []
+}
