@@ -2,7 +2,7 @@ import root from '../eslint.config.mjs';
 
 export default [
   ...root,
-  { ignores: ['src/test/**'] },
+  { ignores: ['src/test/**', 'dist/**', 'bundle/**'] },
   {
     // The launcher is plain JS, which the root config only gives Node globals
     // to for .ts files.

@@ -11,6 +11,8 @@ out
 **/out
 build
 **/build
+cli/bundle
+**/bundle
 coverage
 **/coverage
 
