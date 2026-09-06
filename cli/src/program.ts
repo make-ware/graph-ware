@@ -17,7 +17,15 @@ import { registerWorkspace } from './commands/workspace.ts';
 import { addGlobalOptions } from './options.ts';
 import type { Runtime } from './runtime.ts';
 
-export const VERSION = '0.0.0';
+// Replaced at build time by tsup's `define` (see cli/tsup*.config.ts), which
+// reads the root package.json version — the one release-please bumps.
+// `typeof` on an undeclared identifier is safe, so running from source via tsx
+// (where nothing substitutes it) falls through to the dev sentinel.
+declare const __GRAPHWARE_VERSION__: string;
+export const VERSION =
+  typeof __GRAPHWARE_VERSION__ === 'string'
+    ? __GRAPHWARE_VERSION__
+    : '0.0.0-dev';
 
 class GraphwareCommand extends Command {
   createCommand(name?: string): GraphwareCommand {

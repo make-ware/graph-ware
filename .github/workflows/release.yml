@@ -40,6 +40,7 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - name: Run release-please
         id: release
@@ -206,3 +207,211 @@ jobs:
       - name: Inspect
         run: |
           docker buildx imagetools inspect "${{ env.IMAGE_BASE }}/${{ matrix.image }}:${{ steps.meta.outputs.version }}"
+
+  # The CLI ships as a standalone single-file build (cli/tsup.bundle.config.ts
+  # inlines @project/shared and every npm dependency), so the published asset
+  # needs nothing but Node on PATH — no node_modules, and no tsx, which is what
+  # bin/graphware.js needs to run the source in a checkout.
+  #
+  # Docker-only rebuilds (workflow_dispatch) do not re-publish it: the asset is
+  # already attached to the release this gate implies.
+  cli-release-asset:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable && corepack prepare yarn@4.12.0 --activate
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      # No `yarn workspace @project/shared build` step: shared is source-only
+      # (its script is an echo), and the bundle resolves its exports map
+      # straight to .ts. Nothing has to run before the bundle.
+      - name: Bundle CLI
+        env:
+          # release-please bumps the root package.json, but the checkout is of
+          # the tag it just created — pass the version explicitly so the two
+          # can never disagree.
+          GW_VERSION: ${{ needs.release-please.outputs.version }}
+        run: yarn workspace @project/cli bundle
+
+      - name: Smoke test bundle
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Run from a directory with no node_modules to prove it is self-contained.
+          cp cli/bundle/graphware.js "${RUNNER_TEMP}/graphware.js"
+          cd "${RUNNER_TEMP}"
+          node graphware.js --help > /dev/null
+          test "$(node graphware.js --version)" = "${VERSION}"
+
+      - name: Package tarball
+        id: pack
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          set -euo pipefail
+          STAGE="$(mktemp -d)"
+          mkdir -p "${STAGE}/graphware-${VERSION}"
+          cp cli/bundle/graphware.js "${STAGE}/graphware-${VERSION}/graphware"
+          chmod +x "${STAGE}/graphware-${VERSION}/graphware"
+          cp cli/README.md "${STAGE}/graphware-${VERSION}/README.md"
+          tar -czf "graphware-${VERSION}.tar.gz" -C "${STAGE}" "graphware-${VERSION}"
+          sha256sum "graphware-${VERSION}.tar.gz" > "graphware-${VERSION}.tar.gz.sha256"
+          echo "sha256=$(sha256sum "graphware-${VERSION}.tar.gz" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          gh release upload "$TAG" \
+            "graphware-${VERSION}.tar.gz" \
+            "graphware-${VERSION}.tar.gz.sha256" \
+            --clobber
+
+      - name: Add CLI install instructions to release
+        uses: actions/github-script@v9
+        env:
+          SHA256: ${{ steps.pack.outputs.sha256 }}
+        with:
+          script: |
+            const version = '${{ needs.release-please.outputs.version }}';
+            const tagName = '${{ needs.release-please.outputs.tag_name }}';
+            const { owner, repo } = context.repo;
+
+            const { data: release } = await github.rest.repos.getReleaseByTag({
+              owner,
+              repo,
+              tag: tagName
+            });
+
+            const base = `https://github.com/${owner}/${repo}/releases/download/${tagName}`;
+            const instructions = `
+
+            ---
+
+            ## CLI (\`graphware\`)
+
+            Standalone single-file build. Requires Node.js >= 20.19 on your \`PATH\`; no other dependencies.
+
+            ### Homebrew
+
+            \`\`\`bash
+            brew install ${owner}/tap/graphware
+            \`\`\`
+
+            ### Manual install
+
+            \`\`\`bash
+            curl -fsSLO ${base}/graphware-${version}.tar.gz
+            curl -fsSLO ${base}/graphware-${version}.tar.gz.sha256
+            sha256sum -c graphware-${version}.tar.gz.sha256
+            tar -xzf graphware-${version}.tar.gz
+            sudo install -m 0755 graphware-${version}/graphware /usr/local/bin/graphware
+            \`\`\`
+
+            SHA-256: \`${process.env.SHA256}\`
+
+            ### Getting started
+
+            \`\`\`bash
+            graphware login --email you@example.com
+            graphware workspace use <slug>
+            graphware graph ls
+            graphware resolve <graph>
+            \`\`\`
+            `;
+
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id: release.id,
+              body: release.body + instructions
+            });
+
+  homebrew-tap:
+    needs: [release-please, cli-release-asset]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    # A tap-repo problem must never mark an otherwise good release as failed.
+    continue-on-error: true
+    steps:
+      # Secrets cannot be referenced in a job-level `if:`, so gate in a step.
+      # Without HOMEBREW_TAP_TOKEN (no tap repo yet) this job is a no-op.
+      - name: Check for tap token
+        id: gate
+        env:
+          TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "HOMEBREW_TAP_TOKEN is not set; skipping Homebrew tap publish."
+          fi
+
+      - name: Checkout tap
+        if: steps.gate.outputs.ok == 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Render and push formula
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          SHA256: ${{ needs.cli-release-asset.outputs.sha256 }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          mkdir -p tap/Formula
+          cat > tap/Formula/graphware.rb <<EOF
+          class Graphware < Formula
+            desc "Command-line client for graph-ware, for humans and agents"
+            homepage "https://github.com/${OWNER}/${REPO}"
+            url "https://github.com/${OWNER}/${REPO}/releases/download/${TAG}/graphware-${VERSION}.tar.gz"
+            sha256 "${SHA256}"
+            # Set explicitly: the tag (${TAG}) and the filename version differ.
+            version "${VERSION}"
+            license "MIT"
+
+            depends_on "node"
+
+            def install
+              bin.install "graphware"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/graphware --version")
+            end
+          end
+          EOF
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/graphware.rb
+          git diff --staged --quiet || git commit -m "graphware ${VERSION}"
+          git push

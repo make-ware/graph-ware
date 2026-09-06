@@ -66,6 +66,7 @@ Thumbs.db
 *.swo
 
 dist/
+cli/bundle/
 
 #AI 
 .kiro/
